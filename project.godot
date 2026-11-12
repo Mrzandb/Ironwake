@@ -1,0 +1,12 @@
+config_version=5
+
+[application]
+
+config/name="Ironwake"
+config/description="2D top-down hardcore landship artillery. Simulation is headless and deterministic."
+run/main_scene="res://game/main.tscn"
+config/features=PackedStringArray("4.7")
+
+[physics]
+
+common/physics_ticks_per_second=60

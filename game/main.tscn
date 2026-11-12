@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/main.gd" id="1_main"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Title" type="Label" parent="."]
+offset_left = 32.0
+offset_top = 28.0
+offset_right = 640.0
+offset_bottom = 80.0
+text = "Ironwake"
