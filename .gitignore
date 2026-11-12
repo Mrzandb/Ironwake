@@ -1,0 +1,11 @@
+# Godot 4 import cache. Commit the .uid files that sit next to scripts.
+.godot/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local export output
+build/
+*.translation

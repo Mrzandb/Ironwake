@@ -1,0 +1,33 @@
+extends RefCounted
+
+const Vec := preload("res://sim/vec2_math.gd")
+const Ang := preload("res://sim/angle.gd")
+
+
+static func run(a) -> void:
+	print("RUN math")
+	a.eq(Vec.dot(Vector2(1, 0), Vector2(0, 1)), 0.0, "dot perpendicular")
+	a.eq(Vec.cross(Vector2(1, 0), Vector2(0, 1)), 1.0, "cross unit")
+	a.eq(Vec.cross(Vector2(2, 0), Vector2(2, 0)), 0.0, "cross parallel")
+	a.near(Vec.length(Vector2(3, 4)), 5.0, "length 3-4-5")
+	a.eq(Vec.distance(Vector2.ZERO, Vector2(3, 4)), 5.0, "distance 3-4-5")
+	a.near_v(Vec.normalized(Vector2(3, 4)), Vector2(0.6, 0.8), "normalize 3-4-5", 1e-12)
+	a.eq(Vec.normalized(Vector2.ZERO), Vector2.ZERO, "normalize zero")
+	a.near_v(Vec.rotated(Vector2(1, 0), PI / 2.0), Vector2(0, 1), "rotate 90", 1e-12)
+	a.near_v(Vec.clamp_length(Vector2(3, 4), 2.5), Vector2(1.5, 2.0), "clamp length", 1e-12)
+	a.eq(Vec.clamp_length(Vector2(3, 4), 0.0), Vector2.ZERO, "clamp zero")
+	a.eq(Vec.clamp_length(Vector2(1, 1), 10.0), Vector2(1, 1), "clamp under max")
+	a.near_v(Vec.lerp(Vector2(0, 0), Vector2(10, 4), 0.25), Vector2(2.5, 1), "vec lerp")
+	a.near(Ang.wrap_signed(0.0), 0.0, "wrap 0")
+	a.near(Ang.wrap_signed(PI), PI, "wrap pi")
+	a.near(Ang.wrap_signed(-PI), PI, "wrap -pi")
+	a.near(Ang.wrap_signed(TAU), 0.0, "wrap tau")
+	a.near(Ang.wrap_signed(-TAU), 0.0, "wrap -tau")
+	a.near(Ang.wrap_signed(-0.4), -0.4, "wrap small negative")
+	a.near(Ang.wrap_signed(3.0 * PI), PI, "wrap 3pi", 1e-9)
+	a.near(Ang.delta(0.0, PI), PI, "delta half turn")
+	a.near(Ang.delta(0.0, -0.2), -0.2, "delta small")
+	a.near(Ang.lerp(0.0, PI / 2.0, 0.5), PI / 4.0, "angle lerp")
+	a.near_v(Ang.direction(0.0), Vector2(1, 0), "direction 0")
+	a.near_v(Ang.direction(PI / 2.0), Vector2(0, 1), "direction 90", 1e-12)
+	a.near(Ang.from_direction(Vector2(0, 1)), PI / 2.0, "from direction")
