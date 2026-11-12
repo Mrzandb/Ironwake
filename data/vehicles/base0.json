@@ -1,0 +1,72 @@
+{
+  "vehicle": {
+    "collisionRadius": 250,
+    "cost": 0,
+    "crownPivot": {
+      "x": 0,
+      "y": 0
+    },
+    "crownRate": 0,
+    "id": "base0",
+    "locomotion": "static",
+    "modules": [
+      {
+        "armor": 100,
+        "armorRegen": 1,
+        "finish": "baseA",
+        "id": "core",
+        "kind": "core",
+        "label": "基地",
+        "parts": [
+          [
+            {
+              "x": 150,
+              "y": -240
+            },
+            {
+              "x": 240,
+              "y": -150
+            },
+            {
+              "x": 240,
+              "y": 150
+            },
+            {
+              "x": 150,
+              "y": 240
+            },
+            {
+              "x": -150,
+              "y": 240
+            },
+            {
+              "x": -240,
+              "y": 150
+            },
+            {
+              "x": -240,
+              "y": -150
+            },
+            {
+              "x": -150,
+              "y": -240
+            }
+          ]
+        ],
+        "ring": "chassis",
+        "structure": 5000
+      }
+    ],
+    "move": {
+      "accel": 0,
+      "brake": 0,
+      "maxSpeed": 0,
+      "reverseRatio": 0,
+      "strafeRatio": 0,
+      "turnAccel": 0,
+      "turnRate": 0
+    },
+    "name": "我方基地",
+    "size": "large"
+  }
+}

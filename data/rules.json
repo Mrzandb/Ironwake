@@ -1,0 +1,67 @@
+{
+  "apStunMul": 0.8,
+  "armorFloor": 0.25,
+  "fireTolerance": {
+    "auto": 1.5,
+    "primary": 5
+  },
+  "heMinFactor": 0.15,
+  "heStunMul": 1.5,
+  "immunity": 2,
+  "match": {
+    "changePenalty": 5,
+    "deathCap": 2.5,
+    "deathK": 0.15,
+    "duration": 600,
+    "quotaPerType": 2,
+    "respawn": {
+      "large": 20,
+      "medium": 12,
+      "small": 8
+    }
+  },
+  "overmatchK": 3,
+  "reboot": {
+    "large": 12,
+    "medium": 8,
+    "small": 3
+  },
+  "repair": {
+    "restore": 0.5,
+    "timeMul": 3
+  },
+  "ricochetDeg": 68,
+  "statLimits": {
+    "default": [
+      0,
+      {
+        "$": "inf"
+      }
+    ],
+    "range": [
+      1,
+      {
+        "$": "inf"
+      }
+    ],
+    "reload": [
+      0.1,
+      {
+        "$": "inf"
+      }
+    ],
+    "shellSpeed": [
+      1,
+      {
+        "$": "inf"
+      }
+    ]
+  },
+  "stunDecayDelay": 2,
+  "stunDecayRate": 0.2,
+  "terrain": {
+    "heMul": 1.5,
+    "laserMul": 0.5,
+    "wallHp": 1800
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "data/index.json": "2e8e664ea1caad3db13221a01e9ab2a5772f0703aa90c3bf1b2d45d65d78bc1d",
+  "data/maps/hills.json": "90888f945ecbd35b5e5cfff697cd8ded9c19628411ef4ae0257b0bd47279d00e",
+  "data/rules.json": "efab2ebd33f359507b4da370d548658de6e9232cee50558bf3f8430949f986fa",
+  "data/structures.json": "1f7e49e23a2b3f12b2e1dc5c774f1d26d34086c5963cbe3c325dabb5337db8d1",
+  "data/vehicles/base0.json": "5bec9eb0c503fa4238d362a805d8e8e463d34dcff69c81db7296b5a3549814a4",
+  "data/vehicles/base1.json": "5c13e2e1dfff627a2936c06fc6559b2d861f36ef0a8baf2f71cfa38bb563a742",
+  "data/vehicles/bulwark.json": "ac6c5c437cbe2a05f49839122e7bdf77b6c1549164d5fc28d4279cc1b2b69e22",
+  "data/vehicles/hawk.json": "0558e72788d466f1160db998f73ed828b775d3dc0ddfa87547f4ab13f1bffa43",
+  "data/vehicles/hawkB.json": "ad71eae86ab156cdfd3c04f99accccc369a766ebd9c5545564b43bed5b35aa25",
+  "data/vehicles/hawkC.json": "e302ebc4d162f7cccc4cfc4910f0dd5123129f2e83d8b6efad98cdf1949b6ace",
+  "data/vehicles/swarm.json": "e8c7a156df41eb19de3efefb5d19af2cde5de5251b9c8d58a026b710f9bb0dbd",
+  "data/weapons.json": "bcbaf13ff76c21637c1a326a9f2246dfd2e5e823034de97abb6e622fb9aa66da",
+  "tests/golden/scalars.json": "fb96d7ff6a0b399ba1b4f771dfa730a912d32eb243356dc497c72be528605f0d"
+}

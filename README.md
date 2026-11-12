@@ -21,7 +21,8 @@ Windows 使用 `godot_console`，见 `AGENTS.md`。
 | 路径 | 内容 |
 |---|---|
 | `res://sim/` | 纯 `RefCounted` 模拟。禁止 Node、引擎物理、非种子随机 |
-| `res://data/` | 静态数据（本步只有占位） |
+| `res://data/` | 静态 JSON。数值冻结在 Game_test@33f4be8，由 `tools/bake_data.mjs` 烘焙 |
+| `res://sim/data/` | 数据加载（纯 `RefCounted`，不依赖场景） |
 | `res://game/` | 场景、视图、输入、帧时间累加 |
 | `res://tests/` | 无头测试入口 `run_tests.gd` |
 | `res://tools/` | 空世界步进基准 `bench.gd` |

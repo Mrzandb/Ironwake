@@ -1,0 +1,25 @@
+{
+  "concepts": [
+    "hawkB",
+    "hawkC"
+  ],
+  "lineup": [
+    "bulwark",
+    "swarm",
+    "hawk"
+  ],
+  "maps": [
+    "hills"
+  ],
+  "prototype": {
+    "commit": "33f4be8b19df7fe4137550e1da8ee38bf41aa94e",
+    "repo": "Mrzandb/Game_test"
+  },
+  "sight": {
+    "lookRange": 7200
+  },
+  "structures": [
+    "base0",
+    "base1"
+  ]
+}

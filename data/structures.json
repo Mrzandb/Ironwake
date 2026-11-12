@@ -1,0 +1,8 @@
+{
+  "baseSize": 480,
+  "baseStats": {
+    "armor": 100,
+    "armorRegen": 1,
+    "structure": 5000
+  }
+}

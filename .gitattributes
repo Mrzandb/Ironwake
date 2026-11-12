@@ -9,3 +9,5 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.uid text eol=lf
+*.json text eol=lf
+*.mjs text eol=lf

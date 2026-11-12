@@ -33,12 +33,37 @@ static func run(a) -> void:
 	_collect("res://tests", extra)
 	_collect("res://tools", extra)
 	extra.append("res://project.godot")
+	extra.append("res://AGENTS.md")
+	extra.append("res://README.md")
 	for path in extra:
+		_check_text(str(path), a)
+	var baked: Array = []
+	_collect_ext("res://data", baked, ["json"])
+	_collect_ext("res://tests", baked, ["json"])
+	_collect_ext("res://tools", baked, ["mjs"])
+	a.ok(baked.size() >= 12, "baked json and the bake script are present")
+	for path in baked:
 		_check_text(str(path), a)
 	a.ok(DirAccess.open("res://data") != null, "data directory exists")
 	var project := FileAccess.get_file_as_string("res://project.godot")
 	a.ok(not project.contains("[autoload]"), "no autoload singletons")
 	a.ok(project.contains('run/main_scene="res://game/main.tscn"'), "main scene is in game/")
+
+
+static func _collect_ext(path: String, acc: Array, exts: Array) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	for file_name in dir.get_files():
+		if str(file_name).begins_with("."):
+			continue
+		var ext := str(file_name).get_extension()
+		if exts.has(ext):
+			acc.append(path.path_join(str(file_name)))
+	for sub in dir.get_directories():
+		if str(sub).begins_with("."):
+			continue
+		_collect_ext(path.path_join(str(sub)), acc, exts)
 
 
 static func _collect(path: String, acc: Array) -> void:
