@@ -1,8 +1,8 @@
 extends RefCounted
 class_name SimWorld
 
-## Empty simulation world. step() advances the tick and nothing else.
-## Combat, movement and economy are not part of this milestone.
+## Tick and named RNG streams. Movement, gait and terrain live in sim/motion.gd.
+## This world does not step bodies. Combat and economy are not part of it.
 ## rng is make_streams(seed), matching Game_test World.
 
 const Clock := preload("res://sim/clock.gd")

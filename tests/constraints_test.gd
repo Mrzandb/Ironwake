@@ -2,23 +2,33 @@ extends RefCounted
 
 const CatalogScript := preload("res://sim/data/catalog.gd")
 const Schema := preload("res://sim/data/schema.gd")
+const Validate := preload("res://sim/vehicle/validate.gd")
 
-## Data-only slice of Game_test tests/unit/constraints.test.ts.
-## C1's convexity test and D29 coverage raycast need pose/geometry.
-## C4 needs penetrationAtDistance. Both stay deferred.
+## Game_test tests/unit/constraints.test.ts, except C4.
+## C4 needs penetrationAtDistance and stays deferred.
+## Bases are not passed to validate_vehicle: the prototype never did, and a
+## base has no power module.
 
 
 static func run(a) -> void:
 	print("RUN constraints")
-	print("DEFER C1 convex polygons and D29 coverage until geometry and pose")
 	print("DEFER C4 penetrationAtDistance until combat")
 	var cat = CatalogScript.new()
+	_c1(cat, a)
 	_structure(cat, a)
 	_sight(cat, a)
 	_map(cat, a)
 	_match(cat, a)
 	_gradient(cat, a)
 	_sigma(cat, a)
+
+
+static func _c1(cat, a) -> void:
+	for id in cat.lineup_ids():
+		var report: Dictionary = Validate.validate_vehicle(cat.vehicle(str(id)))
+		if report["errors"].size() > 0:
+			print("C1 ", id, " ", report["errors"])
+		a.eq(report["errors"].size(), 0, "C1 " + str(id))
 
 
 static func _structure(cat, a) -> void:
