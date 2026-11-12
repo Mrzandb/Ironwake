@@ -2,6 +2,7 @@ extends RefCounted
 
 const Clock := preload("res://sim/clock.gd")
 const WorldScript := preload("res://sim/world.gd")
+const Loop := preload("res://sim/loop.gd")
 const Fixed := preload("res://game/fixed_step.gd")
 
 
@@ -19,14 +20,24 @@ static func run(a) -> void:
 	a.eq(world.tick, 3, "three steps")
 	var other = WorldScript.new(4)
 	a.eq(other.tick, 0, "instances do not share tick")
+	var loop = Loop.new(func(_tick):
+		pass
+	)
+	a.eq(loop.advance(0.0), 0.0, "zero frame alpha")
+	a.eq(loop.tick, 0, "zero frame does not tick")
+	a.eq(loop.advance(-0.5), 0.0, "negative frame alpha")
+	a.eq(loop.tick, 0, "negative frame does not tick")
+	var paced = Loop.new(func(_tick):
+		pass
+	)
+	for _i in 10:
+		paced.advance(0.1)
+	a.eq(paced.tick, 60, "one second is 60 ticks")
+	paced.advance(5.0)
+	a.eq(paced.tick, 75, "a stalled frame adds at most 0.25 s")
 	var driver = Fixed.new()
-	a.eq(driver.consume(0.0), 0, "zero frame")
-	a.eq(driver.consume(-0.5), 0, "negative frame")
 	var total := 0
 	for _i in 120:
 		total += driver.consume(Clock.DT)
-	a.eq(total, 120, "one tick per exact frame")
-	a.near(driver.accumulator, 0.0, "accumulator drained")
-	var capped = Fixed.new()
-	a.eq(capped.consume(1.0), capped.max_steps, "spiral cap")
-	a.eq(capped.accumulator, 0.0, "cap drops leftover")
+	a.eq(total, 120, "driver counts one tick per exact frame")
+	a.eq(driver.consume(1.0), 15, "driver clamps one frame to 15 ticks")

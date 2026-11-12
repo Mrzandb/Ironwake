@@ -60,51 +60,64 @@ static func _splitmix(a) -> void:
 
 static func _sfc(a) -> void:
 	_seq(a, Sfc.from_words(1, 2, 3, 4), [7, 34, 56623200, 188882296, 3431242869, 399395954, 785775158, 3843710725], "sfc raw")
-	_seq(a, Sfc.from_seed(1), [1130556604, 2591592147, 3014952990, 960850752, 2734082507, 3058966613, 1454546984, 2701238177], "sfc seed 1")
-	_seq(a, Sfc.from_seed(123456789), [3802896128, 80434582, 3894707069, 3900334430, 1534057038, 1158050898, 2509234537, 3646982613], "sfc seed 123456789")
-	var unit_rng = Sfc.from_words(1, 2, 3, 4)
-	a.eq(unit_rng.next_unit(), 7.0 / 4294967296.0, "unit of first raw")
-	var ints = Sfc.from_seed(1)
-	for i in [4, 3, 0, 0, 5, 5]:
-		a.eq(ints.next_int(6), i, "next_int(6)")
-	a.eq(Sfc.from_seed(1).next_int(1), 0, "next_int(1)")
-	var bounded = Sfc.from_seed(3)
-	var in_range := true
-	for _i in 64:
-		var n: int = bounded.next_int(10)
-		if n < 0 or n > 9:
-			in_range = false
-	a.ok(in_range, "next_int(10) stays in range")
-	var sm = SplitMix.new(1)
-	var warmed = Sfc.from_words(sm.next_u32(), sm.next_u32(), sm.next_u32(), sm.next_u32())
-	for _i in Sfc.WARMUP:
-		warmed.next_u32()
-	a.eq(warmed.next_u32(), Sfc.from_seed(1).next_u32(), "warmup discards 12")
+	# Game_test Rng(seed): four splitmix words, no discarded warmup.
+	_seq(a, RngScript.new(1), [647275419, 720736219, 2935747679, 3959590554, 1760388915, 3582062282, 2612835515, 2422708869], "rng seed 1")
+	_seq(a, RngScript.new(42), [3730666837, 1786513705, 1450338100, 2191736338, 3785014133, 2792630042, 2559606165, 3613948625], "rng seed 42")
+	_seq(a, RngScript.new(123456789), [217360464, 2253230431, 58752542, 3715117548, 1770330342, 875172997, 2128053491, 3492597773], "rng seed 123456789")
+	_seq(a, RngScript.new(0xDEADBEEF), [3042440475, 1217913670, 1425216775, 3941981854], "rng seed deadbeef")
+	var seeded = RngScript.new(1)
+	var words: Array = seeded.state()
+	a.eq(words[0], 1580013426, "state a")
+	a.eq(words[1], 350525680, "state b")
+	a.eq(words[2], 3524174333, "state c")
+	a.eq(words[3], 3011703609, "state d")
+	a.eq(seeded.next(), 647275419.0 / 4294967296.0, "next() of seed 1")
+	seeded = RngScript.new(1)
+	seeded.next_u32()
+	var after: Array = seeded.state()
+	a.eq(after[3], -1283263686, "state d is signed after a draw")
+	a.near(RngScript.new(7).range(-2.0, 3.0), -0.7108627834822983, "range seed 7", 1e-12)
+	var gauss = RngScript.new(9)
+	a.near(gauss.truncated_gauss(1.0, 2.0), 0.09666007543816074, "gauss 0", 1e-12)
+	a.eq(gauss.truncated_gauss(1.0, 2.0), 2.0, "gauss clamped high")
+	a.near(gauss.truncated_gauss(1.0, 2.0), -0.38433387577880573, "gauss 2", 1e-12)
+	a.near(gauss.truncated_gauss(1.0, 2.0), -1.3655130015633719, "gauss 3", 1e-12)
+	var same_a = RngScript.new(42)
+	var same_b = RngScript.new(42)
+	var matched := true
+	for _i in 1000:
+		if same_a.next_u32() != same_b.next_u32():
+			matched = false
+	a.ok(matched, "same seed same 1000 outputs")
+	a.ok(RngScript.new(1).next_u32() != RngScript.new(2).next_u32(), "different seeds differ")
+	var unit = RngScript.new(7)
+	var inside := true
+	for _i in 1000:
+		var v: float = unit.next()
+		if v < 0.0 or v >= 1.0:
+			inside = false
+	a.ok(inside, "next() stays in [0, 1)")
+	var limited = RngScript.new(9)
+	var bounded := true
+	for _i in 1000:
+		if absf(limited.truncated_gauss(1.0, 2.0)) > 2.0:
+			bounded = false
+	a.ok(bounded, "truncated gauss stays inside the limit")
+	a.eq(RngScript.new(-1).next_u32(), RngScript.new(4294967295).next_u32(), "negative seed matches uint32 seed")
 
 
 static func _streams(a) -> void:
-	a.eq(RngScript.derive_stream_seed(1, "spread"), 937888819, "derive spread")
-	a.eq(RngScript.derive_stream_seed(1, "ai"), 1192993052, "derive ai")
-	a.eq(RngScript.derive_stream_seed(1, "map"), 3896133553, "derive map")
-	a.eq(RngScript.derive_stream_seed(42, "spread"), 1845062590, "derive spread 42")
-	var rng = RngScript.new(1)
-	a.eq(rng.spread().next_u32(), 4129030414, "spread first")
-	a.eq(rng.ai().next_u32(), 3728779727, "ai first")
-	a.eq(rng.map().next_u32(), 2296329134, "map first")
-	var map_first = RngScript.new(1)
-	a.eq(map_first.map().next_u32(), 2296329134, "map independent of creation order")
-	var again = RngScript.new(1)
-	var cached = again.spread()
-	a.ok(cached == again.stream("spread"), "stream cached")
-	var neg = RngScript.new(-1)
-	var wide = RngScript.new(4294967295)
-	a.eq(neg.seed, 4294967295, "negative seed stored as u32")
-	a.eq(neg.ai().next_u32(), wide.ai().next_u32(), "negative seed matches uint32 seed")
-	var live = RngScript.new(5)
-	live.spread().next_u32()
-	var snap: Dictionary = live.export_state()
-	var continued: int = live.spread().next_u32()
-	var restored = RngScript.new(0)
-	restored.import_state(snap)
-	a.eq(restored.seed, 5, "import keeps seed")
-	a.eq(restored.spread().next_u32(), continued, "import resumes stream")
+	a.eq(RngScript.stream_seed(1, RngScript.SPREAD_SALT), 1597463006, "spread salt")
+	a.eq(RngScript.stream_seed(1, RngScript.AI_SALT), 461845906, "ai salt")
+	a.eq(RngScript.stream_seed(1, RngScript.MAP_SALT), 668265262, "map salt")
+	var streams = RngScript.make_streams(1)
+	a.eq(streams.spread.next_u32(), 3999759398, "spread first")
+	a.eq(streams.ai.next_u32(), 3188684842, "ai first")
+	a.eq(streams.map.next_u32(), 3116959923, "map first")
+	var used = RngScript.make_streams(5)
+	var fresh = RngScript.make_streams(5)
+	used.spread.next()
+	used.spread.next()
+	var ai_value: int = used.ai.next_u32()
+	a.eq(ai_value, 3516040939, "ai of seed 5")
+	a.eq(ai_value, fresh.ai.next_u32(), "extra spread draws do not move ai")

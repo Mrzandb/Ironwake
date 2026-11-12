@@ -3,7 +3,7 @@ class_name SimWorld
 
 ## Empty simulation world. step() advances the tick and nothing else.
 ## Combat, movement and economy are not part of this milestone.
-## One instance per match or training env. No process-global state.
+## rng is make_streams(seed), matching Game_test World.
 
 const Clock := preload("res://sim/clock.gd")
 const RngScript := preload("res://sim/rng.gd")
@@ -15,7 +15,7 @@ var rng
 
 
 func _init(root_seed: int = 1) -> void:
-	rng = RngScript.new(root_seed)
+	rng = RngScript.make_streams(root_seed)
 
 
 func step() -> void:

@@ -8,23 +8,51 @@ class_name SimVec
 ## cross() is positive when b is clockwise from a.
 
 
-const LENGTH_EPSILON := 1e-12
+const NORM_EPSILON := 1e-9
 
 
 static func length_squared(v: Vector2) -> float:
 	return v.x * v.x + v.y * v.y
 
 
+static func add(a: Vector2, b: Vector2) -> Vector2:
+	return Vector2(a.x + b.x, a.y + b.y)
+
+
+static func sub(a: Vector2, b: Vector2) -> Vector2:
+	return Vector2(a.x - b.x, a.y - b.y)
+
+
+static func mul(v: Vector2, scale: float) -> Vector2:
+	return Vector2(v.x * scale, v.y * scale)
+
+
+static func hypot(x: float, y: float) -> float:
+	x = absf(x)
+	y = absf(y)
+	if x < y:
+		var swap := x
+		x = y
+		y = swap
+	if x == 0.0:
+		return 0.0
+	var ratio := y / x
+	return x * sqrt(1.0 + ratio * ratio)
+
+
 static func length(v: Vector2) -> float:
-	return sqrt(length_squared(v))
+	return hypot(v.x, v.y)
 
 
 static func normalized(v: Vector2) -> Vector2:
-	var len_sq := length_squared(v)
-	if len_sq <= LENGTH_EPSILON * LENGTH_EPSILON:
-		return Vector2.ZERO
-	var inv := 1.0 / sqrt(len_sq)
-	return Vector2(v.x * inv, v.y * inv)
+	var mag := length(v)
+	if mag > NORM_EPSILON:
+		return Vector2(v.x / mag, v.y / mag)
+	return Vector2.ZERO
+
+
+static func from_angle(radians: float, radius: float = 1.0) -> Vector2:
+	return Vector2(cos(radians) * radius, sin(radians) * radius)
 
 
 static func dot(a: Vector2, b: Vector2) -> float:
@@ -61,4 +89,4 @@ static func distance_squared(a: Vector2, b: Vector2) -> float:
 
 
 static func distance(a: Vector2, b: Vector2) -> float:
-	return sqrt(distance_squared(a, b))
+	return hypot(a.x - b.x, a.y - b.y)

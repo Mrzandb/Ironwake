@@ -1,14 +1,11 @@
 extends RefCounted
 class_name Sfc32
 
-## Chris Doty-Humphrey sfc32, JS form from bryc/PRNGs (signed 32-bit ops).
-## from_seed expands one uint32 with splitmix32, then discards WARMUP outputs
-## (PractRand's 64-bit seed discards 12). Not yet checked against Game_test.
+## sfc32 step from Game_test@33f4be8 src/core/rng.ts.
+## The constructor stores four splitmix32 words and does not discard outputs.
 
 const Bits := preload("res://sim/bits.gd")
 const SplitMix := preload("res://sim/splitmix32.gd")
-
-const WARMUP := 12
 
 var _a: int = 0
 var _b: int = 0
@@ -18,19 +15,16 @@ var _d: int = 0
 
 static func from_words(a: int, b: int, c: int, d: int):
 	var rng = load("res://sim/sfc32.gd").new()
-	rng._a = Bits.to_int32(a)
-	rng._b = Bits.to_int32(b)
-	rng._c = Bits.to_int32(c)
-	rng._d = Bits.to_int32(d)
+	rng._a = a
+	rng._b = b
+	rng._c = c
+	rng._d = d
 	return rng
 
 
 static func from_seed(seed_value: int):
 	var sm := SplitMix.new(seed_value)
-	var rng = from_words(sm.next_u32(), sm.next_u32(), sm.next_u32(), sm.next_u32())
-	for _i in WARMUP:
-		rng.next_u32()
-	return rng
+	return from_words(sm.next_u32(), sm.next_u32(), sm.next_u32(), sm.next_u32())
 
 
 func next_u32() -> int:
@@ -56,7 +50,6 @@ func next_unit() -> float:
 
 
 func next_int(n: int) -> int:
-	# Unbiased [0, n). n is 1..2^32.
 	if n <= 0 or n > 4294967296:
 		return 0
 	var threshold := 0
@@ -72,13 +65,4 @@ func next_int(n: int) -> int:
 
 
 func duplicate():
-	return from_words(Bits.u32(_a), Bits.u32(_b), Bits.u32(_c), Bits.u32(_d))
-
-
-func export_state() -> Dictionary:
-	return {
-		"a": Bits.u32(_a),
-		"b": Bits.u32(_b),
-		"c": Bits.u32(_c),
-		"d": Bits.u32(_d),
-	}
+	return from_words(_a, _b, _c, _d)

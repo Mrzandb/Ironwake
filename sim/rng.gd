@@ -1,76 +1,67 @@
-extends RefCounted
-class_name SimRng
+extends "res://sim/sfc32.gd"
+class_name Rng
 
-## Seeded simulation RNG.
-##
-## 2026-11-12: Game_test@33f4be8 was not readable from this environment
-## (GitHub 404). This file follows the public sfc32 step and the improved
-## splitmix32 (Math.imul). Stream names "spread", "ai" and "map" are reserved.
-## Derivation is FNV-1a of the name, XOR the root seed, one splitmix32 mix,
-## then Sfc32.from_seed (4 words + 12 discarded outputs).
-## Re-check src/core/rng.ts and tests/unit/rng.test.ts before porting combat numbers.
-## If those vectors differ, change this file — do not patch gameplay on top.
+## Game_test@33f4be8 src/core/rng.ts.
+## splitmix32 fills a,b,c,d with no discarded outputs.
+## spread/ai/map are separate generators: seed XOR a fixed salt.
 
-const Bits := preload("res://sim/bits.gd")
-const Hash := preload("res://sim/hash.gd")
-const SplitMix := preload("res://sim/splitmix32.gd")
-const Sfc := preload("res://sim/sfc32.gd")
+const Bits32 := preload("res://sim/bits.gd")
+const Streams := preload("res://sim/streams.gd")
 
-const STREAM_SPREAD := "spread"
-const STREAM_AI := "ai"
-const STREAM_MAP := "map"
-
-var seed: int = 1
-var _streams: Dictionary = {}
+const SPREAD_SALT := 0x5f3759df
+const AI_SALT := 0x1b873593
+const MAP_SALT := 0x27d4eb2f
 
 
-func _init(root_seed: int = 1) -> void:
-	seed = Bits.u32(root_seed)
+func _init(seed_value: int = 1) -> void:
+	var seeded = load("res://sim/sfc32.gd").from_seed(seed_value)
+	_a = seeded._a
+	_b = seeded._b
+	_c = seeded._c
+	_d = seeded._d
 
 
-static func derive_stream_seed(root_seed: int, name: String) -> int:
-	var mixed := Bits.u32(Bits.xor32(Hash.fnv1a32(name), root_seed))
-	return SplitMix.new(mixed).next_u32()
+func next() -> float:
+	return next_unit()
 
 
-func stream(name: String):
-	if not _streams.has(name):
-		_streams[name] = Sfc.from_seed(derive_stream_seed(seed, name))
-	return _streams[name]
+func range(lo: float, hi: float) -> float:
+	return lo + next() * (hi - lo)
 
 
-func spread():
-	return stream(STREAM_SPREAD)
+func truncated_gauss(sigma: float, limit: float) -> float:
+	var u := maxf(1e-9, next())
+	var v := next()
+	var g := sqrt(-2.0 * log(u)) * cos(TAU * v) * sigma
+	if g < -limit:
+		return -limit
+	if g > limit:
+		return limit
+	return g
 
 
-func ai():
-	return stream(STREAM_AI)
-
-
-func map():
-	return stream(STREAM_MAP)
+func state() -> Array:
+	return [_a, _b, _c, _d]
 
 
 func duplicate():
-	var copy = load("res://sim/rng.gd").new(seed)
-	for name in _streams.keys():
-		copy._streams[name] = _streams[name].duplicate()
+	var copy = load("res://sim/rng.gd").new(0)
+	copy._a = _a
+	copy._b = _b
+	copy._c = _c
+	copy._d = _d
 	return copy
 
 
-func export_state() -> Dictionary:
-	var names: Array = _streams.keys()
-	names.sort()
-	var packed := {}
-	for name in names:
-		packed[name] = _streams[name].export_state()
-	return {"seed": seed, "streams": packed}
+static func stream_seed(seed_value: int, salt: int) -> int:
+	return Bits32.u32(Bits32.xor32(seed_value, salt))
 
 
-func import_state(state: Dictionary) -> void:
-	seed = Bits.u32(int(state["seed"]))
-	_streams = {}
-	var packed: Dictionary = state["streams"]
-	for name in packed.keys():
-		var words: Dictionary = packed[name]
-		_streams[name] = Sfc.from_words(int(words["a"]), int(words["b"]), int(words["c"]), int(words["d"]))
+static func make_streams(seed_value: int):
+	var streams = Streams.new()
+	streams.seed = seed_value
+	var Script = load("res://sim/rng.gd")
+	streams.spread = Script.new(stream_seed(seed_value, SPREAD_SALT))
+	streams.ai = Script.new(stream_seed(seed_value, AI_SALT))
+	streams.map = Script.new(stream_seed(seed_value, MAP_SALT))
+	return streams

@@ -70,7 +70,8 @@ static func _strip(src: String) -> String:
 
 static func _check_sim(path: String, a) -> void:
 	var code := _strip(FileAccess.get_file_as_string(path))
-	if not code.contains("extends RefCounted"):
+	var extends_sim := code.contains("extends \"res://sim/")
+	if not code.contains("extends RefCounted") and not extends_sim:
 		a.ok(false, path + " must extend RefCounted")
 		return
 	var bad := ""

@@ -182,10 +182,10 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
     - 根因：GDScript `int` 是有符号 64 位，乘积超出 `2^63-1` 后按 2^64 环绕。再 `& 0xFFFFFFFF` 时，4.7.2 上低 32 位仍然是 `1`，和 `Math.imul` 一致。
     - 做法：`sim/bits.gd` 把乘法拆成 16 位，不依赖有符号溢出。对结果看 `tests/rng_test.gd` 的黄金向量，不要拿十进制乘积去对 JS。
 
-17. **这个环境读不到 `Game_test`**（2026-11-12 实测）
-    - 现象：`gh api repos/Mrzandb/Game_test` 和 `git ls-remote https://github.com/Mrzandb/Game_test.git` 都是 404。
-    - 根因：仓库是私有的，当前凭证访问不到。提交 `33f4be8` 的 `src/core/rng.ts` 和 `tests/unit/rng.test.ts` 都没读到。
-    - 做法：RNG 按公开的 sfc32 与改进版 splitmix32（`Math.imul` 常量 `0x21f0aaad` / `0x735a2d97`）实现，播种和 `spread` / `ai` / `map` 分流写在 `sim/rng.gd` 文件头。移植射击、散布数值之前，用原型测试向量对一下。对不上就改 `sim/rng.gd` 和黄金向量，不要在玩法里打补丁。
+17. **云端代理无法直接访问 `Game_test`**（2026-11-12 实测）
+    - 现象：`gh api repos/Mrzandb/Game_test`、`gh api repos/Mrzandb/Game_test/commits/33f4be8`、`git ls-remote https://github.com/Mrzandb/Game_test.git HEAD`、以及 `git clone` 到 `/tmp/game_test_probe` 都是 404 / `Repository not found`。给 Cursor GitHub App 开过权限之后仍然如此。
+    - 根因：云端用的是 GitHub App 安装令牌。看不到这个私有仓库时，GitHub 返回 404，而不是 403。
+    - 做法：云端不要反复 clone。原型源码以附件快照提供（`Game_test@33f4be8b19df7fe4137550e1da8ee38bf41aa94e`，139 个文本文件，字节与 git blob 一致；不含 lockfile 和图片）。快照解到工作区外的临时目录，不要提交进本仓库。已按该快照对齐 RNG 播种（splitmix32 四个状态字，不丢弃预热输出）、分流（`seed ^ 0x5f3759df` / `0x1b873593` / `0x27d4eb2f`）、`wrapAngle` 的 `[-π, π)`，以及定步长单帧封顶 0.25 秒。
 
 18. **`.uid` 要提交**（2026-11-12 实测）
     - 现象：`godot --headless --editor --path . --quit` 在每个 `.gd` 旁生成一行 `uid://...` 的 `.uid`，并创建 `.godot/`。手写的 `game/main.tscn` 没有被改写，里面仍然只有 `path=`。
@@ -214,7 +214,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 
 数值冻结在 `33f4be8`。未开工的 EMP 玩法、长枪、铁砧、雷等，暂按原设计文档。不追求和 JS 原型录像哈希逐字节一致，只要求同一 Godot 构建、同一种子、同一输入得到同一结果。
 
-几何约定与 Game_test@33f4be8、Godot 2D 屏幕坐标一致：**+X 向右、+Y 向下、0 弧度朝右、顺时针为正角**。`SimAngle.direction(PI/2)` 是 `(0, 1)`（向下）；负角朝上。`SimVec.rotated` 用 `x' = x cos - y sin`、`y' = x sin + y cos`，正叉积表示第二向量在第一向量的顺时针侧。这套约定锁在 `tests/math_test.gd`（含屏幕坐标参考哈希）。RNG 黄金向量这次没有改，仍等能读到原型 `rng.ts` 再对。
+几何约定与 Game_test@33f4be8、Godot 2D 屏幕坐标一致：**+X 向右、+Y 向下、0 弧度朝右、顺时针为正角**。`SimAngle.direction(PI/2)` 是 `(0, 1)`（向下）；负角朝上。`wrap_signed` 与原型 `wrapAngle` 一样落到 **[-π, π)**，所以 `+π` 和 `-π` 都是 `-π`。`SimVec.rotated` 用 `x' = x cos - y sin`、`y' = x sin + y cos`，正叉积表示第二向量在第一向量的顺时针侧。单位向量阈值是长度 `1e-9`。定步长在 `sim/loop.gd`：单帧真实时间先夹到 `[0, 0.25]` 秒，再按 `DT` 消耗，返回插值系数 `acc/DT`。
 
 ## 8. 维护本文件
 
@@ -257,10 +257,10 @@ GitHub Actions：`.github/workflows/tests.yml`，在 `ubuntu-latest` 上下载�
 - `sim/` 和 `data/` **不得** `preload` / `load` `res://game/`，不得 `extends Node`（含 Node2D 等），不得用物理服务器做判定（`PhysicsServer`、`move_and_slide`）。
 - 模拟层禁止 `randf()` / `randi()` / `randfn()` / `randomize()` / `RandomNumberGenerator`，也禁止读 `Time` 或 `OS.get_*` 当随机或时钟。随机只走 `sim/rng.gd`。时间只走 `SimClock.DT`（60 Hz，`1.0/60.0`），`step()` 不接收帧间隔。
 - 不要 Autoload，不要把世界放进进程全局变量。训练时一个进程里 `SimWorld.new(seed)` 多份；`duplicate()` 复制 tick 和已创建的 RNG 流。
-- 表现层可以把真实帧时间交给 `FixedStepDriver.consume()`，再调用相应次数的 `world.step()`。模拟结果不得依赖调用 `step()` 时的墙钟。
+- 表现层把真实帧时间交给 `sim/loop.gd` 的 `advance()`（`game/fixed_step.gd` 只是薄封装）。单帧先夹到 0.25 秒。模拟结果不得依赖调用 `step()` 时的墙钟。
 - `tests/layer_test.gd` 会扫 `sim/` 里的这些禁令，并检查文本资源没有 BOM、没有 CR。
 - 坐标是屏幕坐标：+X 向右、+Y 向下、0 弧度朝右、顺时针为正。详见第 7 节。表现层不要再把 Y 翻一次。
 
 局内经济（本步不实现）：战斗结算以后由 sim 广播事件；属性修正集中走 StatResolver，修正来源包括装备、改装和局内状态；换车前由经济层检查费用，sim 不直接扣钱。
 
-RNG 约定（未对照原型，见第 17 条）：改进版 splitmix32 把一个种子展开成 sfc32 的四个状态字，再丢掉 12 个输出（PractRand 的 64 位播种也是丢 12 个）。`spread`、`ai`、`map` 由「名字的 FNV-1a 异或根种子，再取一次 splitmix32」各自派生，互不消耗。黄金向量在 `tests/rng_test.gd`，同种子 1000 tick 的序列哈希在 `tests/determinism_test.gd`。
+RNG 与 `Game_test@33f4be8` 的 `src/core/rng.ts` 一致：splitmix32 展开四个状态字，**不丢弃**输出。`spread` / `ai` / `map` 是三个独立的 `Rng`，种子分别为 `seed ^ 0x5f3759df`、`seed ^ 0x1b873593`、`seed ^ 0x27d4eb2f`。公开操作是 `next_u32`、`next`、`range`、`truncated_gauss`、`state`、`make_streams`。期望值在 `tests/rng_test.gd`，同种子 1000 tick 的序列哈希在 `tests/determinism_test.gd`（种子 42 为 `1947717684`）。
