@@ -191,6 +191,11 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
     - 现象：`godot --headless --editor --path . --quit` 在每个 `.gd` 旁生成一行 `uid://...` 的 `.uid`，并创建 `.godot/`。手写的 `game/main.tscn` 没有被改写，里面仍然只有 `path=`。
     - 做法：提交 `.uid`，继续 gitignore `.godot/`。手写场景仍然不要自己编 `uid` 属性（第 8 条）。
 
+19. **JSON 数字全是 float，`Vector2` 会丢掉烘焙精度**（2026-11-12 实测）
+    - 现象：`JSON.parse_string` 读到的 `8`，`typeof` 是 float 不是 int。蜂群动力舱六角顶点的 y 是 `-9.000000000000002`；放进 `Vector2` 再读出来，和这个值不相等。`tests/data_test.gd` 锁着这两件事。
+    - 根因：Godot 4.7.2 把 JSON 数字一律解析成 64 位 float。`Vector2` 的分量是 32 位。原型多边形来自 JS `Math.sin` / `Math.cos`，差一截就和快照对不上。
+    - 做法：点保持 `{x, y}` 字典。`DataSchema.px` / `py` 只做 `float()`。用 `.size()` 算出来的个数是 int，和 JSON 叶子比 `typeof` 时先转成 float。`==` 对 int 和 float 仍然成立，不要拿 `typeof` 当数值相等。
+
 ## 5. 本机其它可用工具（均已核对）
 
 - .NET SDK `10.0.401`（当前用不上：标准版 Godot 不支持 C#）
@@ -205,6 +210,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 - [x] 建项目骨架：`project.godot`（主场景 `res://game/main.tscn`）、`sim/` `data/` `game/` `tests/` `tools/`、`.gitignore`、`.editorconfig`、`.gitattributes`（2026-11-12）
 - [x] 定分层并写进本文件：第 10 节
 - [x] 定确定性基线：`SimClock.DT` + 具名种子 RNG；同种子哈希在 `tests/determinism_test.gd`（2026-11-12 实测 exit 0）
+- [x] 数据层：`Game_test@33f4be8` 的 `src/data/` 烘焙成 JSON，由 `sim/data/` 加载（2026-11-12，无头测试 1051 通过、0 失败）
 - [ ] 装导出模板（等要打包时）
 - [ ] 视觉基线（玩法还没移植）
 
@@ -212,7 +218,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 
 上一代工程在 `C:\Users\Administrator\Desktop\Game`，设计依据：`docs/设计文档.md`（v2.6/v1.8）、`docs/射击与损伤机制_v2.md`、`docs/技术架构.md`、`docs/规则空白清单.md`。上一代有 188 项测试与数值批跑报告，**规则逻辑和数值可复用，代码不可直接移植**（TS → GDScript 重写）。文档与代码矛盾时以 Game_test@33f4be8 代码为准；未实现部分按设计文档。
 
-数值冻结在 `33f4be8`。未开工的 EMP 玩法、长枪、铁砧、雷等，暂按原设计文档。不追求和 JS 原型录像哈希逐字节一致，只要求同一 Godot 构建、同一种子、同一输入得到同一结果。
+数值冻结在 `33f4be8`。未开工的 EMP 玩法、长枪、铁砧、雷等，暂按原设计文档。不追求和 JS 原型录像哈希逐字节一致，只要求同一 Godot 构建、同一种子、同一输入得到同一结果。数据表的烘焙和加载见第 11 节。
 
 几何约定与 Game_test@33f4be8、Godot 2D 屏幕坐标一致：**+X 向右、+Y 向下、0 弧度朝右、顺时针为正角**。`SimAngle.direction(PI/2)` 是 `(0, 1)`（向下）；负角朝上。`wrap_signed` 与原型 `wrapAngle` 一样落到 **[-π, π)**，所以 `+π` 和 `-π` 都是 `-π`。`SimVec.rotated` 用 `x' = x cos - y sin`、`y' = x sin + y cos`，正叉积表示第二向量在第一向量的顺时针侧。单位向量阈值是长度 `1e-9`。定步长在 `sim/loop.gd`：单帧真实时间先夹到 `[0, 0.25]` 秒，再按 `DT` 消耗，返回插值系数 `acc/DT`。
 
@@ -249,10 +255,11 @@ GitHub Actions：`.github/workflows/tests.yml`，在 `ubuntu-latest` 上下载�
 | 目录 | 放什么 |
 |---|---|
 | `res://sim/` | 纯 `RefCounted`。战斗、移动、RNG、定步长时钟。可以无头、可以快进、可以多开 |
-| `res://data/` | 静态表。本步只有占位 |
+| `res://sim/data/` | 读静态表的纯 `RefCounted`（`DataCatalog`、`DataSchema`）。不依赖 Node、场景、`res://game/` |
+| `res://data/` | 静态表。`Game_test@33f4be8` 烘焙后的 JSON，见第 11 节 |
 | `res://game/` | Node、场景、视图、输入、HUD、帧时间累加（`FixedStepDriver`） |
 | `res://tests/` | `extends SceneTree` 的测试入口和套件 |
-| `res://tools/` | 基准。计时可以用 `Time`，因为不在 sim 里 |
+| `res://tools/` | 基准，以及 `bake_data.mjs`。计时可以用 `Time`，因为不在 sim 里 |
 
 - `sim/` 和 `data/` **不得** `preload` / `load` `res://game/`，不得 `extends Node`（含 Node2D 等），不得用物理服务器做判定（`PhysicsServer`、`move_and_slide`）。
 - 模拟层禁止 `randf()` / `randi()` / `randfn()` / `randomize()` / `RandomNumberGenerator`，也禁止读 `Time` 或 `OS.get_*` 当随机或时钟。随机只走 `sim/rng.gd`。时间只走 `SimClock.DT`（60 Hz，`1.0/60.0`），`step()` 不接收帧间隔。
@@ -261,6 +268,50 @@ GitHub Actions：`.github/workflows/tests.yml`，在 `ubuntu-latest` 上下载�
 - `tests/layer_test.gd` 会扫 `sim/` 里的这些禁令，并检查文本资源没有 BOM、没有 CR。
 - 坐标是屏幕坐标：+X 向右、+Y 向下、0 弧度朝右、顺时针为正。详见第 7 节。表现层不要再把 Y 翻一次。
 
-局内经济（本步不实现）：战斗结算以后由 sim 广播事件；属性修正集中走 StatResolver，修正来源包括装备、改装和局内状态；换车前由经济层检查费用，sim 不直接扣钱。
+局内经济（本步不实现）：战斗结算以后由 sim 广播事件；属性修正集中走 StatResolver，修正来源包括装备、改装和局内状态；换车前由经济层检查费用，sim 不直接扣钱。载具蓝图上的 `cost`（费用）留给这一层。原型没有这个字段，烘焙时写成 `0`。当前没有任何逻辑读取它：不进配额、复活、伤害或移动。`tests/data_test.gd` 会扫 `sim/` 和 `game/` 的代码，出现 `cost` 即失败。经济系统落地前保持 0，并先改这道扫描。
 
 RNG 与 `Game_test@33f4be8` 的 `src/core/rng.ts` 一致：splitmix32 展开四个状态字，**不丢弃**输出。`spread` / `ai` / `map` 是三个独立的 `Rng`，种子分别为 `seed ^ 0x5f3759df`、`seed ^ 0x1b873593`、`seed ^ 0x27d4eb2f`。公开操作是 `next_u32`、`next`、`range`、`truncated_gauss`、`state`、`make_streams`。期望值在 `tests/rng_test.gd`，同种子 1000 tick 的序列哈希在 `tests/determinism_test.gd`（种子 42 为 `1947717684`）。
+
+## 11. 数据层（2026-11-12）
+
+原型 `src/data/` 的求值结果在 `res://data/`。加载器是 `res://sim/data/catalog.gd`（`DataCatalog`）和 `schema.gd`（`DataSchema`）。几何求交、pose、腿的 IK、`validateVehicle`、移动和战斗都还没移植。
+
+### 为什么是 JSON，不是 `.tres`
+
+烘焙在 Node 里执行原型。JSON 是那次求值直接写出的字节，仓库里没有第二套序列化。GDScript 的 `float` 是 64 位，`JSON.parse_string` 读回来仍是 64 位（见第 19 条：整数也会变成 float）。`.tres` 里的 `Vector2` 会收成 32 位，编辑器还可能重写资源；带 BOM 的 `.tres` 会让编辑器报 `Parse Error`（第 4 节第 3 条）。加载只用 `FileAccess`，不经过场景。
+
+`Infinity` 写不成 JSON。规则上下限里的正无穷存成 `{"$":"inf"}`，目录加载后变成 `INF`。
+
+### 烘焙
+
+快照是 `Mrzandb/Game_test` 的 `33f4be8b19df7fe4137550e1da8ee38bf41aa94e`，解在仓库外面，不要提交。Node `>= 22.18`。脚本会自己加上类型剥离，并用 `tools/register_ts.mjs` 给原型里不带扩展名的 import 补 `.ts`。
+
+```bash
+node tools/bake_data.mjs --snapshot /path/to/Game_test
+```
+
+它 import 原型的 `shapes.ts` 和 `sim/vehicle/legs.ts`，把多边形和导弹射程算完再写文件。不要在 GDScript 里重算这些形状。`camera.ts` 含参数属性，类型剥离跑不了，脚本只核对源码里的 `lookRange: 2400 * RANGE_SCALE`，把结果 `7200` 写入 `data/index.json` 的 `sight.lookRange`。相机本身不在这次移植里。
+
+脚本核对一组 33f4be8 指纹（`RANGE_SCALE = 3`、鱼雷和 EMP、`wallHp: 1800`、`MIN_PASSAGE = 520`、主炮 `350/560/120`、基地边长 480）。对不上就退出。同一快照重复运行，输出字节不变（2026-11-12 实测，`tests/golden/sha256.json` 的 SHA256 保持 `83012f1faac02d3ab757cf406adb771700f8dd933545499faca62cd344205843`）。
+
+`shapes.ts` 的构造函数没有移植成 GDScript。它们的输出已经在各模块的 `parts` 里。壁垒腿的静止碰撞体同样是烘焙结果；`legSpec` / `legRest` 仍保留参数，供以后的 IK 对照。
+
+### 表里有什么
+
+- `rules.json`：全局规则。
+- `weapons.json`：全部武器，含未装备的 `torpedo_ap` 和 `emp_missile`。`RANGE_SCALE`、缺省 `sigmaRatio`、壁垒 / 蜂群的未缩放穿深常数也在这里。
+- `vehicles/*.json`：壁垒、蜂群、隼，以及存档用的隼 B / C，和双方基地。每份蓝图有 `cost: 0`。
+- `structures.json`：`BASE_SIZE` 480 和基地装甲 / 结构 / 回复。
+- `maps/hills.json`：丘陵，以及 `minPassage` 520。
+- `tests/golden/scalars.json`：除多边形顶点以外的全部叶子，供无头测试逐项对比。顶点由文件哈希锁住。
+
+阵容（约束 C3 / C5 / C6 用的三辆）是 `index.lineup`：壁垒、蜂群、隼。隼 B / C 不进阵容。
+
+### 单位和结构，下一步别改
+
+- 载具局部坐标：+x 车头、+y 车体右侧。航向 0 时与世界坐标同向，不要翻 Y。
+- 车体射界、转速、散布是**度**。地图出生点 `heading` 是**弧度**（丘陵里是 `-PI/4` 和 `3*PI/4`）。
+- 缺省的 `sigmaRatio` 不写进武器；读取时用 `0.5`。只有壁垒主炮显式写成 `0.3`。`salvo` 也没写，缺省规则属于战斗逻辑，不要补进表。
+- `BULWARK_AP.range` / `SWARM_AP.range` 仍是缩放前的 1600 / 1400。装到武器上的射程已经乘过 `RANGE_SCALE`。
+- 基地只有一个 `core` 模块，没有动力舱。原型的 `validateVehicle` 要求恰好一个动力舱，但 C1 没把基地算进去。下一步不要对基地直接套那条检查。
+- 隼有三个 `primary`（导弹和两门激光）。原型 C6 的「主武器射程」会跳过导弹，取第一门激光。

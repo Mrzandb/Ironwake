@@ -5,6 +5,8 @@ const RngTest := preload("res://tests/rng_test.gd")
 const MathTest := preload("res://tests/math_test.gd")
 const ClockTest := preload("res://tests/clock_test.gd")
 const DeterminismTest := preload("res://tests/determinism_test.gd")
+const DataTest := preload("res://tests/data_test.gd")
+const ConstraintsTest := preload("res://tests/constraints_test.gd")
 const LayerTest := preload("res://tests/layer_test.gd")
 
 
@@ -19,6 +21,8 @@ func _initialize() -> void:
 	MathTest.run(a)
 	ClockTest.run(a)
 	DeterminismTest.run(a)
+	DataTest.run(a)
+	ConstraintsTest.run(a)
 	LayerTest.run(a)
 	print("TESTS: %d failed" % a.failed)
 	print("TESTS: %d passed, %d failed" % [a.passed, a.failed])
