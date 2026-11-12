@@ -1,9 +1,10 @@
 extends RefCounted
 class_name SimAngle
 
-## Angles in radians, zero on +X, counterclockwise.
+## Screen angles, matching Godot 2D and Game_test@33f4be8.
+## +X is right, +Y is down, 0 radians faces +X, and clockwise is positive.
+## direction(PI/2) is (0, 1), which is down. A negative angle points up.
 ## wrap_signed returns (-PI, PI]. -PI folds onto +PI so a half-turn has one value.
-## 2026-11-12: not checked against Game_test src/core.
 
 
 static func wrap_signed(radians: float) -> float:

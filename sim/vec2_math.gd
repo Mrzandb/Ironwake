@@ -1,9 +1,11 @@
 extends RefCounted
 class_name SimVec
 
-## Plain vector helpers. Vector2 is a value type, not a scene node.
-## Axes are mathematical: +X right, +Y up. Y-down for drawing belongs in game/.
-## 2026-11-12: not checked against Game_test src/core. Confirm the axis before porting geometry.
+## Screen vectors, matching Godot 2D and Game_test@33f4be8.
+## +X is right and +Y is down. Vector2 is a value type, not a scene node.
+## rotated() takes a clockwise-positive angle:
+## x' = x cos(a) - y sin(a), y' = x sin(a) + y cos(a).
+## cross() is positive when b is clockwise from a.
 
 
 const LENGTH_EPSILON := 1e-12

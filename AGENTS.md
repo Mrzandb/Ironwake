@@ -214,7 +214,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 
 数值冻结在 `33f4be8`。未开工的 EMP 玩法、长枪、铁砧、雷等，暂按原设计文档。不追求和 JS 原型录像哈希逐字节一致，只要求同一 Godot 构建、同一种子、同一输入得到同一结果。
 
-几何工具目前是数学坐标：+X 向右、+Y 向上、角度从 +X 逆时针。移植碰撞和炮塔局部坐标之前，先核对原型的 y 轴朝向和角度零点（Pixi 通常 y 向下）。
+几何约定与 Game_test@33f4be8、Godot 2D 屏幕坐标一致：**+X 向右、+Y 向下、0 弧度朝右、顺时针为正角**。`SimAngle.direction(PI/2)` 是 `(0, 1)`（向下）；负角朝上。`SimVec.rotated` 用 `x' = x cos - y sin`、`y' = x sin + y cos`，正叉积表示第二向量在第一向量的顺时针侧。这套约定锁在 `tests/math_test.gd`（含屏幕坐标参考哈希）。RNG 黄金向量这次没有改，仍等能读到原型 `rng.ts` 再对。
 
 ## 8. 维护本文件
 
@@ -259,6 +259,7 @@ GitHub Actions：`.github/workflows/tests.yml`，在 `ubuntu-latest` 上下载�
 - 不要 Autoload，不要把世界放进进程全局变量。训练时一个进程里 `SimWorld.new(seed)` 多份；`duplicate()` 复制 tick 和已创建的 RNG 流。
 - 表现层可以把真实帧时间交给 `FixedStepDriver.consume()`，再调用相应次数的 `world.step()`。模拟结果不得依赖调用 `step()` 时的墙钟。
 - `tests/layer_test.gd` 会扫 `sim/` 里的这些禁令，并检查文本资源没有 BOM、没有 CR。
+- 坐标是屏幕坐标：+X 向右、+Y 向下、0 弧度朝右、顺时针为正。详见第 7 节。表现层不要再把 Y 翻一次。
 
 局内经济（本步不实现）：战斗结算以后由 sim 广播事件；属性修正集中走 StatResolver，修正来源包括装备、改装和局内状态；换车前由经济层检查费用，sim 不直接扣钱。
 
