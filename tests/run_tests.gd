@@ -12,6 +12,8 @@ const TerrainTest := preload("res://tests/terrain_test.gd")
 const VehicleTest := preload("res://tests/vehicle_test.gd")
 const TrackingTest := preload("res://tests/tracking_test.gd")
 const ConstraintsTest := preload("res://tests/constraints_test.gd")
+const CombatTest := preload("res://tests/combat_test.gd")
+const CombatScenarioTest := preload("res://tests/combat_scenario_test.gd")
 const LayerTest := preload("res://tests/layer_test.gd")
 
 
@@ -33,6 +35,8 @@ func _initialize() -> void:
 	VehicleTest.run(a)
 	TrackingTest.run(a)
 	ConstraintsTest.run(a)
+	CombatTest.run(a)
+	CombatScenarioTest.run(a)
 	LayerTest.run(a)
 	print("TESTS: %d failed" % a.failed)
 	print("TESTS: %d passed, %d failed" % [a.passed, a.failed])

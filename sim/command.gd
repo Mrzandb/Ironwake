@@ -2,9 +2,8 @@ extends RefCounted
 class_name SimCommand
 
 ## Game_test@33f4be8 src/sim/command.ts.
-## The only external input the movement step reads. Aim, fire, slot and lock
-## are carried so a later combat step can share the same command. This step
-## reads throttle, turn and strafe.
+## External input for one tick. Movement reads throttle, turn and strafe.
+## Combat reads aim, fire, slot, secondaries and lock.
 
 
 static func idle() -> Dictionary:
