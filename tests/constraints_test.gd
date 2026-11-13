@@ -3,18 +3,18 @@ extends RefCounted
 const CatalogScript := preload("res://sim/data/catalog.gd")
 const Schema := preload("res://sim/data/schema.gd")
 const Validate := preload("res://sim/vehicle/validate.gd")
+const Pen := preload("res://sim/combat/penetration.gd")
 
-## Game_test tests/unit/constraints.test.ts, except C4.
-## C4 needs penetrationAtDistance and stays deferred.
+## Game_test tests/unit/constraints.test.ts.
 ## Bases are not passed to validate_vehicle: the prototype never did, and a
 ## base has no power module.
 
 
 static func run(a) -> void:
 	print("RUN constraints")
-	print("DEFER C4 penetrationAtDistance until combat")
 	var cat = CatalogScript.new()
 	_c1(cat, a)
+	_c4(cat, a)
 	_structure(cat, a)
 	_sight(cat, a)
 	_map(cat, a)
@@ -90,6 +90,18 @@ static func _chain_ok(by_id: Dictionary, start: Dictionary) -> bool:
 		if guard > 32:
 			return false
 	return true
+
+
+static func _c4(cat, a) -> void:
+	for id in cat.weapon_ids():
+		var weapon = cat.weapon(str(id))
+		if str(weapon["kind"]) != Schema.WEAPON_KINETIC:
+			continue
+		for ammo in weapon["ammo"]:
+			if str(ammo["kind"]) != "AP":
+				continue
+			var got := Pen.at_distance(float(ammo["p0"]), float(weapon["range"]), float(weapon["range"]))
+			a.ok(got > 0.0, "C4 " + str(id) + " penetration stays positive at max range")
 
 
 static func _sight(cat, a) -> void:

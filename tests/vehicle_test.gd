@@ -10,7 +10,6 @@ const Point := preload("res://sim/point.gd")
 
 static func run(a) -> void:
 	print("RUN vehicles")
-	print("DEFER swarm turret arcs; inTurretArc belongs to combat")
 	print("DEFER base coverage fan; a base is one exposed core and has no power module")
 	var cat = Util.catalog()
 	var golden: Dictionary = Util.golden()

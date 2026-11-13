@@ -1,11 +1,10 @@
 extends RefCounted
 class_name SimMobility
 
-## Movement-side stub of Game_test mobilityOf (src/sim/combat/modules.ts).
-## Module timers, damage and host-cascade destruction are not ported.
-## Callers pass `down`: module ids that are not working (destroyed or disabled).
-## A missing power module counts as powered, matching powerOk. Bases have none.
-## Combat should fill `down` from module state later. Do not reimplement damage here.
+## Game_test mobilityOf (src/sim/combat/modules.ts), the speed formula only.
+## Callers pass `down`: module ids that are not working.
+## SimFight builds that set from module state. A missing power module counts
+## as powered, matching powerOk. Bases have none.
 
 
 static func of_vehicle(vehicle: Dictionary, down: Dictionary, alive: bool = true) -> Dictionary:

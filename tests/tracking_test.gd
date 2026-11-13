@@ -11,7 +11,7 @@ const Point := preload("res://sim/point.gd")
 
 static func run(a) -> void:
 	print("RUN tracking")
-	print("DEFER full World orbit; missile nose-lock is not part of this step")
+	print("DEFER thinkSimple missile nose-lock; AI steering belongs to the match step")
 	var cat = Util.catalog()
 	var hawk = cat.vehicle("hawk")
 	var radius := float(hawk["move"]["maxSpeed"]) / Angle.deg(float(hawk["move"]["turnRate"]))

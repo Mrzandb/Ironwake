@@ -211,6 +211,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 - [x] 定分层并写进本文件：第 10 节
 - [x] 定确定性基线：`SimClock.DT` + 具名种子 RNG；同种子哈希在 `tests/determinism_test.gd`（2026-11-12 实测 exit 0）
 - [x] 数据层：`Game_test@33f4be8` 的 `src/data/` 烘焙成 JSON，由 `sim/data/` 加载（2026-11-12，无头测试 1051 通过、0 失败）
+- [x] 战斗：穿深、模块状态、武器、导弹、属性修正、最小战斗驱动（2026-11-13，见第 14 节）
 - [ ] 装导出模板（等要打包时）
 - [ ] 视觉基线（玩法还没移植）
 
@@ -320,7 +321,9 @@ node tools/bake_data.mjs --snapshot /path/to/Game_test
 
 ## 12. 几何、移动、地形（2026-11-12）
 
-移植自 `Game_test@33f4be8`，点仍是 `{x, y}` 字典。`sim/motion.gd` 是 `World.step` 里和移动有关的那一段，顺序与原型相同：指令 → `step_body` → 车与车 / 地形推出 / 场地夹紧 → 步态。没有冠冕瞄准、武器、导弹、模块计时，也没有 `stat()` 修正。没有修正时速度和转向的倍率是 1，所以健康载具的轨迹和原型运动学一致。
+这一节是第 3 步的记录。冠冕、武器和模块状态见第 14 节。`sim/motion.gd` 仍是只有移动的那一段。
+
+移植自 `Game_test@33f4be8`，点仍是 `{x, y}` 字典。`sim/motion.gd` 的顺序与原型的移动段相同：指令 → `step_body` → 车与车 / 地形推出 / 场地夹紧 → 步态。它不跑冠冕瞄准、武器、导弹或模块计时。没有修正时速度和转向的倍率是 1，所以健康载具的轨迹和原型运动学一致。
 
 | 文件 | 原型 |
 |---|---|
@@ -332,7 +335,7 @@ node tools/bake_data.mjs --snapshot /path/to/Game_test
 | `sim/vehicle/validate.gd` | 凸性、宿主、D29。静态建筑不查「恰好一个动力舱」 |
 | `sim/command.gd` | `command.ts`。这一步只读油门、转向、平移 |
 | `sim/movement/kinematics.gd` | 足式 / 悬浮 / 履带。转速是度/秒，航向是弧度，且不把航向折回 `[-π, π)` |
-| `sim/movement/mobility.gd` | `mobilityOf` 的公式。`down` 是尚未移植的模块损伤桩：id 在里面就当作不工作 |
+| `sim/movement/mobility.gd` | `mobilityOf` 的公式。`down` 里的 id 当作不工作。`SimFight` 用模块状态填这个集合 |
 | `sim/movement/gait.gd` | 程序化步态。`down` 里的腿定格在底盘坐标，之后跟着车体走 |
 | `sim/terrain/terrain.gd` | 岩体永久阻挡，墙 HP 来自 `rules.terrain.wallHp`（1800） |
 | `tests/motion_golden.json` | `tools/golden_motion.mjs` 用原型函数生成。绝对误差 **1e-9** |
@@ -351,7 +354,7 @@ node tools/golden_motion.mjs --snapshot /path/to/Game_test
 
 ### 和原型行为的差别
 
-- 坏腿 / 坏履带不走模块状态机。调用方把 id 放进 `down`。速度惩罚和定格公式与 `mobilityOf` / `stepGait` 一致；宿主连坐、瘫痪倒计时、修复都没有。
+- 第 3 步的 `SimMotion` 仍不跑模块状态机。调用方把 id 放进 `down`。速度惩罚和定格公式与 `mobilityOf` / `stepGait` 一致。宿主连坐、瘫痪倒计时和修复在第 14 节的 `SimFight` 里。
 - 绕圈只用了 `thinkSimple` 里悬浮车的油门分解，并固定「导弹未就绪」，所以车头保持目标方位加 50°。完整 `World` 会在导弹能发射时把车头扭向目标。平均距离仍落在原型测试的 ±120 里，并且和这条简化公式的 Node 结果差在 1e-9 内。
 - 确定性哈希是移动状态（位置、速度、航向、脚、墙 HP）按 1e-9 量化后的 FNV，不是 `World.hash()`。后者还含装甲、炮弹和冠冕角。
 - 悬浮的 `speed` 是沿车头的标量。纯平移时它是 0，侧向速度在 `vel` 里。
@@ -380,4 +383,79 @@ node tools/golden_motion.mjs --snapshot /path/to/Game_test
 21. **类型剥离导入不了带参数属性的原型文件**（2026-11-12 实测）
     - 现象：`node --experimental-strip-types` 导入 `src/sim/world.ts` 报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`，指到 `constructor(readonly arena: ...)`。
     - 根因：Node 22 的 strip-only 模式不支持 TypeScript 参数属性。`camera.ts` 同样过不了（第 11 节）。
-    - 做法：黄金值改导入没有参数属性的模块（运动学、步态、地形、pose、`modules.ts` 里的 `mobilityOf`）。需要整棵 `World` 时不要在这条加载链上硬导入。
+    - 做法：不需要整棵 `World` 时，导入没有参数属性的模块。`tools/golden_combat.mjs` 要跑 `World` 时，先把构造函数上的 `readonly` 参数改写成普通字段再导入（只改快照副本，不提交）。
+
+22. **`:=` 推不出类型时，编译直接失败**（2026-11-13 实测）
+    - 现象：`var x := callable.call(...)`，或 `var flag := 未标注类型的比较 or 另一个比较`，报 `The variable type is being inferred from a Variant value`，并写着 Warning treated as error。脚本加载失败。
+    - 根因：Godot 4.7.2 把这种推断当成错误。`Callable.call` 和未标注字典的比较结果是 Variant。
+    - 做法：写成 `var x: float = ...` 或 `var flag: bool = ...`。返回值没有静态类型、又只是存一下时，用 `var x = ...`，不要用 `:=`（第 15 条）。
+
+23. **`JSON.stringify` 会把无穷写成 `null`**（2026-11-13 实测）
+    - 现象：原型模块的 `lastStunAt` 初值是 `-Infinity`。直接 `JSON.stringify` 后这个字段变成 `null`，和「没写过」分不开。
+    - 根因：JSON 没有无穷。`JSON.stringify(-Infinity)` 的结果是 `null`。
+    - 做法：写黄金文件之前把非有限数换成字符串 `"-inf"` / `"inf"`。GDScript 读回来再还原成 `-INF` / `INF`。
+
+24. **无头 `--script` 加载失败时会卡住 `xmessage`**（2026-11-13 实测）
+    - 现象：`--script` 指向的脚本不是 `SceneTree` / `MainLoop`，或者依赖脚本有解析错误时，进程停在 `do_wait`，子进程是 `xmessage`，没有退出码。空等超过数分钟。
+    - 根因：第 14 条的主循环不会自己结束；这台 VM 上 Godot 还会弹出 `xmessage` 等用户点掉。
+    - 做法：测试入口必须 `extends SceneTree`，并在 `_process` 里兜底 `quit(1)`。排查时先看 `app_userdata/Ironwake/logs/godot.log`，不要等那个对话框。
+
+## 14. 战斗（2026-11-13）
+
+`sim/fight.gd`（`SimFight`）按 `World.step` 的顺序接在第 12 节的移动段上：指令和锁定 → 车体（`mobilityOf` 之后乘 `stat()` 的 `maxSpeed` / `turnRate`）→ 碰撞 → 冠冕 / 炮塔 → 步态 → 武器 → 弹丸 → 导弹 → 模块计时和修正器计时。`SimMotion` 没有改这个顺序，移动测试仍走它。
+
+| 文件 | 原型 |
+|---|---|
+| `sim/combat/penetration.gd` | `penetration.ts`。C4 用的就是这条 `penetrationAtDistance` |
+| `sim/combat/modules.gd` | 损伤、瘫痪、重启、修复、宿主连坐、`isWorking` |
+| `sim/combat/slots.gd` | 主武器槽。齐射 / 逐发。`RIPPLE = 0.3` |
+| `sim/combat/turret.gd` | 射界内回转，贴边不换边 |
+| `sim/combat/targeting.gd` | 锁定距离、外露模块选择 |
+| `sim/combat/impact.gd` | AP / HE / EMP。墙的 HE ×1.5 在这里乘完再交给 `terrain.damage` |
+| `sim/combat/weapons.gd` | 装填、散布、炮弹、激光。激光打墙先乘 `laserMul` 0.5 |
+| `sim/combat/missiles.gd` | 助推摆动和巡航转向。鱼雷、EMP 弹按原型里已有的数据飞，没有另补玩法 |
+| `sim/combat/sweep.gd` | 线段上最近的实体模块。同阵营透明 |
+| `sim/stats/resolver.gd` | `stat` / `addModifier` / 计时。`purchase` 数组默认空，来源名是 `"purchase"` |
+| `sim/movement/separate.gd` | `World.collide`，移动和战斗共用 |
+
+点仍然是字典。腿的命中把 `feet_pose` 放进 pose。不每 tick 跑 D29。
+
+事件在 `SimFight.events`，每 tick 开头清空。`hit` 带结构和失能，`moduleState` 转到 `DISABLED` 是瘫痪，`vehicleDestroyed` 是击毁。`sinks` 里的 `Callable` 在这一 tick 的事件组装完之后收到每一条，给以后的记分用。战斗不读蓝图上的 `cost`。
+
+黄金值：
+
+```bash
+node tools/golden_combat.mjs --snapshot /path/to/Game_test
+```
+
+`tests/combat_golden.json` 与原型对比的绝对误差是 **1e-9**（文件里的数先按 1e-12 四舍五入）。同一对局种子 42 跑两次，`state_hash()` 相同；种子 43 不同。
+
+无头套件 **14192** 通过、**0** 失败，约 40 秒（2026-11-13 实测，exit 0）。编辑器冒烟 `godot --headless --editor --path . --quit` 退出码 0，日志里没有 `Parse Error`、`ERROR:`、`SCRIPT ERROR`。
+
+丘陵上同一组 6 辆车，固定油门和转向，并对对面出生点瞄准、主炮和副炮都开火。热身 200 tick，再跑 4000 tick。同一次进程里的仅移动基准约 **226 微秒/tick**。开火基准两次：
+
+- **5484 微秒/tick**（约 182 步/秒）
+- **5415 微秒/tick**（约 185 步/秒）
+
+相对 PR #3 的仅移动 287–322 微秒/tick，大约 17–19 倍。大头是每门自动炮每 tick 的外露模块选择，以及弹丸对每辆车的 `first_hit`。这是第一组带开火的数，不是对局性能。
+
+### 和原型行为的差别
+
+- 没有移植 `World` 的 `place` 以外的对局层：`despawn`、回放、`thinkSimple`、配额和复活都不在这一步。`place` 留着，因为炮塔绕圈和锁定测试要每 tick 把目标放到新位置。
+- 确定性哈希是位置、速度、航向、冠冕、炮塔角、模块装甲 / 结构 / 失能 / 状态、炮弹、导弹和墙 HP，按 1e-9 量化。不是 `World.hash()` 那条 `toFixed(6)` 字符串。180 tick 对射的模块和弹道数值与原型差在 1e-9 内，所以两条哈希不相等只是格式不同。
+- 自动炮的提前量用挂载原点 `{0, 0}`，不是炮口。`world.ts` 的 `aim` 就是这样调用 `updateAutoAim` 的；文件头注释写的是炮口。
+- 导弹发射的同一 tick 就会走一步助推，航向里已经有摆动。原型测试对扇面角用 `toBeCloseTo(..., 1)`，大约 0.05 弧度，装得下这一步。
+- EMP、鱼雷按 `weapons.ts` 里已有的定义飞和结算。没有补原型里没写的发射器或额外规则。
+
+### 只记录的文档矛盾
+
+- `docs/射击与损伤机制_v2.md` §4.2 写 HE 系数 `max(0, (HE穿深 − armorCurrent) / HE穿深)`。`penetration.ts` 和 `rules.heMinFactor` 是 `max(0.15, ...)`。2026-11-11 的代码注释把保底写成已定规则。数值保持 0.15。
+- 第 12 节记下的射界标题矛盾没有改。蜂群射界测试和代码一致：正后是 `mainGun`、`sec3`、`sec4` 三门，不是标题里的两门。
+
+### 给下一步（World、对局、回放、AI）
+
+- 把 `SimFight.step` 收成对局循环即可，不要把步态挪到碰撞前面，也不要每 tick 跑 D29。
+- 回放要记的是每 tick 的 `Command`，外加种子和地图 id。校验用同一套 `step`。带拆墙的回放测试现在仍标着 DEFER。
+- AI 只产生命令。`thinkSimple` 在导弹能发射时会把车头扭向目标；跟踪测试仍固定当成导弹未就绪。
+- 记分订阅 `sinks`，读 `hit`、`moduleState`、`vehicleDestroyed`。购买修正走 `add_purchase`，默认是空数组。换车费用仍不要读 `cost`。
+- 开火基准大约 5.4 毫秒/tick。对局层如果要无头跑很多局长，先看自动瞄准里的 `first_hit` 次数，不要先改公式。

@@ -10,7 +10,6 @@ const Angle := preload("res://sim/angle.gd")
 
 static func run(a) -> void:
 	print("RUN movement")
-	print("DEFER destroyModule host cascade and the swarm/hawk fight smoke; the down-set is the mobility stub")
 	var cat = Util.catalog()
 	var golden: Dictionary = Util.golden()
 	_singles(cat, golden, a)
