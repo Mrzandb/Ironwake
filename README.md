@@ -25,4 +25,4 @@ Windows 使用 `godot_console`，见 `AGENTS.md`。
 | `res://sim/data/` | 数据加载（纯 `RefCounted`，不依赖场景） |
 | `res://game/` | 场景、视图、输入、帧时间累加 |
 | `res://tests/` | 无头测试入口 `run_tests.gd` |
-| `res://tools/` | 空世界步进基准 `bench.gd` |
+| `res://tools/` | 基准 `bench.gd`（空世界，以及 6 辆车在丘陵上的移动） |

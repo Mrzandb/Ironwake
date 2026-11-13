@@ -8,7 +8,7 @@ const FORBIDDEN := [
 	"randfn",
 	"RandomNumberGenerator",
 	"randomize",
-	"Time",
+	"Time.", # engine clock API; the gait key stepTime must stay writable
 	"PhysicsServer",
 	"move_and_slide",
 	"get_tree(",

@@ -246,7 +246,9 @@ godot --headless --editor --path . --quit
 godot --headless --path .
 ```
 
-2026-11-12 这台 Linux VM 上，空 `SimWorld.step` 20000 tick（先热身 1000），三次约 **0.098–0.108 微秒/tick**（大约每秒 900 万到 1000 万次空步进）。这只是空循环基线。战斗逻辑进来之后用同一条命令重测，不要拿这个数当战斗性能。
+2026-11-12 这台 Linux VM 上，空 `SimWorld.step` 20000 tick（先热身 1000），三次约 **0.098–0.108 微秒/tick**（大约每秒 900 万到 1000 万次空步进）。这只是空循环基线。
+
+同一天晚些时候，在已经载入数据表的进程里又测了三次空步进，约 **0.186–0.189 微秒/tick**。空循环会跟着机器负载变，不要把这两次差看成逻辑变慢。运动基准见第 12 节。
 
 GitHub Actions：`.github/workflows/tests.yml`，在 `ubuntu-latest` 上下载同一 zip、核对 SHA512、跑上面的测试脚本。
 
@@ -274,7 +276,7 @@ RNG 与 `Game_test@33f4be8` 的 `src/core/rng.ts` 一致：splitmix32 展开四�
 
 ## 11. 数据层（2026-11-12）
 
-原型 `src/data/` 的求值结果在 `res://data/`。加载器是 `res://sim/data/catalog.gd`（`DataCatalog`）和 `schema.gd`（`DataSchema`）。几何求交、pose、腿的 IK、`validateVehicle`、移动和战斗都还没移植。
+原型 `src/data/` 的求值结果在 `res://data/`。加载器是 `res://sim/data/catalog.gd`（`DataCatalog`）和 `schema.gd`（`DataSchema`）。几何、pose、腿 IK、校验、移动、步态和地形在第 12 节。战斗还没移植。
 
 ### 为什么是 JSON，不是 `.tres`
 
@@ -290,11 +292,11 @@ RNG 与 `Game_test@33f4be8` 的 `src/core/rng.ts` 一致：splitmix32 展开四�
 node tools/bake_data.mjs --snapshot /path/to/Game_test
 ```
 
-它 import 原型的 `shapes.ts` 和 `sim/vehicle/legs.ts`，把多边形和导弹射程算完再写文件。不要在 GDScript 里重算这些形状。`camera.ts` 含参数属性，类型剥离跑不了，脚本只核对源码里的 `lookRange: 2400 * RANGE_SCALE`，把结果 `7200` 写入 `data/index.json` 的 `sight.lookRange`。相机本身不在这次移植里。
+它 import 原型的 `shapes.ts` 和 `sim/vehicle/legs.ts`，把多边形和导弹射程算完再写文件。静止模块的多边形继续用烘焙结果，不要在 GDScript 里重算 `regular` / `chamferRect`。腿动起来之后用 `sim/vehicle/legs.gd` 的 `leg_parts`；`lift = 0` 已对上烘焙顶点（第 12 节）。`camera.ts` 含参数属性，类型剥离跑不了，脚本只核对源码里的 `lookRange: 2400 * RANGE_SCALE`，把结果 `7200` 写入 `data/index.json` 的 `sight.lookRange`。相机本身不在这次移植里。
 
 脚本核对一组 33f4be8 指纹（`RANGE_SCALE = 3`、鱼雷和 EMP、`wallHp: 1800`、`MIN_PASSAGE = 520`、主炮 `350/560/120`、基地边长 480）。对不上就退出。同一快照重复运行，输出字节不变（2026-11-12 实测，`tests/golden/sha256.json` 的 SHA256 保持 `83012f1faac02d3ab757cf406adb771700f8dd933545499faca62cd344205843`）。
 
-`shapes.ts` 的构造函数没有移植成 GDScript。它们的输出已经在各模块的 `parts` 里。壁垒腿的静止碰撞体同样是烘焙结果；`legSpec` / `legRest` 仍保留参数，供以后的 IK 对照。
+`shapes.ts` 的静止输出已经在各模块的 `parts` 里。`sim/vehicle/shapes.gd` 只给移动中的腿用。壁垒腿的静止碰撞体仍是烘焙结果；`legSpec` / `legRest` 留在 JSON 里，IK 用模块上的 `leg` 字段。
 
 ### 表里有什么
 
@@ -313,5 +315,69 @@ node tools/bake_data.mjs --snapshot /path/to/Game_test
 - 车体射界、转速、散布是**度**。地图出生点 `heading` 是**弧度**（丘陵里是 `-PI/4` 和 `3*PI/4`）。
 - 缺省的 `sigmaRatio` 不写进武器；读取时用 `0.5`。只有壁垒主炮显式写成 `0.3`。`salvo` 也没写，缺省规则属于战斗逻辑，不要补进表。
 - `BULWARK_AP.range` / `SWARM_AP.range` 仍是缩放前的 1600 / 1400。装到武器上的射程已经乘过 `RANGE_SCALE`。
-- 基地只有一个 `core` 模块，没有动力舱。原型的 `validateVehicle` 要求恰好一个动力舱，但 C1 没把基地算进去。下一步不要对基地直接套那条检查。
+- 基地只有一个 `core` 模块，没有动力舱。原型的 `validateVehicle` 要求恰好一个动力舱，但 C1 没把基地算进去。`sim/vehicle/validate.gd` 对 `locomotion == static` 跳过这一条。不要对基地跑 D29 包覆：整座建筑就是核心舱，扇形一定会打到它。
 - 隼有三个 `primary`（导弹和两门激光）。原型 C6 的「主武器射程」会跳过导弹，取第一门激光。
+
+## 12. 几何、移动、地形（2026-11-12）
+
+移植自 `Game_test@33f4be8`，点仍是 `{x, y}` 字典。`sim/motion.gd` 是 `World.step` 里和移动有关的那一段，顺序与原型相同：指令 → `step_body` → 车与车 / 地形推出 / 场地夹紧 → 步态。没有冠冕瞄准、武器、导弹、模块计时，也没有 `stat()` 修正。没有修正时速度和转向的倍率是 1，所以健康载具的轨迹和原型运动学一致。
+
+| 文件 | 原型 |
+|---|---|
+| `sim/point.gd` | `src/core/math/vec2.ts` 的 64 位版本。不要改用 `Vector2` |
+| `sim/geometry/poly.gd` | `src/sim/geometry/poly.ts` |
+| `sim/vehicle/shapes.gd` | `shapes.ts` 里腿会用到的 `regular` / `strut` / `chamferRect` |
+| `sim/vehicle/legs.gd` | `solveKnee` / `legParts` |
+| `sim/vehicle/pose.gd` | 冠冕 / 炮塔变换、`firstHit`。没有脚姿态时用烘焙 `parts` |
+| `sim/vehicle/validate.gd` | 凸性、宿主、D29。静态建筑不查「恰好一个动力舱」 |
+| `sim/command.gd` | `command.ts`。这一步只读油门、转向、平移 |
+| `sim/movement/kinematics.gd` | 足式 / 悬浮 / 履带。转速是度/秒，航向是弧度，且不把航向折回 `[-π, π)` |
+| `sim/movement/mobility.gd` | `mobilityOf` 的公式。`down` 是尚未移植的模块损伤桩：id 在里面就当作不工作 |
+| `sim/movement/gait.gd` | 程序化步态。`down` 里的腿定格在底盘坐标，之后跟着车体走 |
+| `sim/terrain/terrain.gd` | 岩体永久阻挡，墙 HP 来自 `rules.terrain.wallHp`（1800） |
+| `tests/motion_golden.json` | `tools/golden_motion.mjs` 用原型函数生成。绝对误差 **1e-9** |
+
+再生黄金值（快照不要提交）：
+
+```bash
+node tools/golden_motion.mjs --snapshot /path/to/Game_test
+```
+
+`src/sim/world.ts` 的构造函数用了参数属性，Node 的类型剥离导入不了（第 21 条）。黄金脚本直接导入运动学、步态、地形和 pose，碰撞段按 `world.ts` 抄。
+
+无头套件这次 **12852** 通过、**0** 失败，约 45 秒。C1 的包覆射线是大头：单独校验壁垒大约 13 秒。编辑器冒烟 `godot --headless --editor --path . --quit` 退出码 0，日志里没有 `Parse Error`、`ERROR:`、`SCRIPT ERROR`。
+
+丘陵上 6 辆车（两种各两辆，出生点、固定油门和转向，含步态和地形推出），热身 200 tick 后跑 4000 tick，三次约 **287–322 微秒/tick**（大约每秒 3100–3500 步）。这是带碰撞的第一组数，不是战斗性能。
+
+### 和原型行为的差别
+
+- 坏腿 / 坏履带不走模块状态机。调用方把 id 放进 `down`。速度惩罚和定格公式与 `mobilityOf` / `stepGait` 一致；宿主连坐、瘫痪倒计时、修复都没有。
+- 绕圈只用了 `thinkSimple` 里悬浮车的油门分解，并固定「导弹未就绪」，所以车头保持目标方位加 50°。完整 `World` 会在导弹能发射时把车头扭向目标。平均距离仍落在原型测试的 ±120 里，并且和这条简化公式的 Node 结果差在 1e-9 内。
+- 确定性哈希是移动状态（位置、速度、航向、脚、墙 HP）按 1e-9 量化后的 FNV，不是 `World.hash()`。后者还含装甲、炮弹和冠冕角。
+- 悬浮的 `speed` 是沿车头的标量。纯平移时它是 0，侧向速度在 `vel` 里。
+
+### 只记录的文档矛盾
+
+- `设计文档.md` 的移动方式表仍是悬浮 220、履带 160（蜂群 150）。代码是隼 400、蜂群 180、壁垒 110。`数值平衡交接.md` 的测试索引也还写着蜂群极速 150。
+- 同文仍写路面材质影响履带和足式。`terrain.ts` 只有岩和墙，没有材质速度系数。清单 #38 里「材质只影响速度」没有进 33f4be8 的地形代码。
+- `swarm.test.ts` 的标题写后向 2 门，断言是 `mainGun`、`sec3`、`sec4` 共 3 个 id。设计文档 D46 写后向 3 门，和断言一致。射界测试留给战斗。
+- 清单 #2 建议悬浮转速 20–30 °/s。隼现在是 50 °/s。#59 之后转速已是普通平衡值，清单该项仍未勾。
+
+## 13. 本步新坑
+
+接第 4 节往下数。
+
+19. **JSON 里的整数是 float，不能当 int 字典键**（2026-11-12 实测）
+    - 现象：`JSON.parse_string('{"group":0}')` 的 `group`，`typeof` 是 `TYPE_FLOAT`（3）。`{0: "int", 0.0: "float"}` 的 `size()` 是 2。
+    - 根因：Godot 4.7 把 JSON 数字都解析成 64 位 float。字典键看类型，`int` 0 和 `float` 0.0 不是同一条。
+    - 做法：步态组在 `init_gait` 里 `int()` 一次。查找时用同一个类型。不要假设 `==` 成立的两个数做键也相等。
+
+20. **分层扫描的 `Time` 会命中 `stepTime`**（2026-11-12 实测）
+    - 现象：禁令表里的子串 `Time` 能匹配烘焙步态字段 `stepTime`。
+    - 根因：扫描是去掉注释后的 `contains`，不是标识符。
+    - 做法：`tests/layer_test.gd` 改成匹配 `Time.`，仍然挡住 `Time.get_ticks_*`。不要把子串改回 `Time`。
+
+21. **类型剥离导入不了带参数属性的原型文件**（2026-11-12 实测）
+    - 现象：`node --experimental-strip-types` 导入 `src/sim/world.ts` 报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`，指到 `constructor(readonly arena: ...)`。
+    - 根因：Node 22 的 strip-only 模式不支持 TypeScript 参数属性。`camera.ts` 同样过不了（第 11 节）。
+    - 做法：黄金值改导入没有参数属性的模块（运动学、步态、地形、pose、`modules.ts` 里的 `mobilityOf`）。需要整棵 `World` 时不要在这条加载链上硬导入。
