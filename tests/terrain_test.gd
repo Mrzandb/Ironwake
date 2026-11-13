@@ -9,7 +9,6 @@ const Point := preload("res://sim/point.gd")
 
 static func run(a) -> void:
 	print("RUN terrain")
-	print("DEFER map replay; recording and playback need the match step")
 	var cat = Util.catalog()
 	var golden: Dictionary = Util.golden()
 	var obstacles := _obstacles(cat)

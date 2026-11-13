@@ -1,12 +1,13 @@
 extends RefCounted
 class_name SimFight
 
-## Minimal combat driver. Game_test World.step order, without match, replay or AI:
-## command and lock, body, collide, crown and turrets, gait, weapons,
+## Game_test World.step. Match, replay and AI call this; they do not step on their own.
+## Order: command and lock, body, collide, crown and turrets, gait, weapons,
 ## projectiles, missiles, module timers, modifier timers.
 ## Events are the broadcast. hit carries damage and stun, moduleState to
 ## DISABLED is a paralysis, vehicleDestroyed is a kill. sinks receive each
 ## event after the tick is assembled. Purchase modifiers stay empty here.
+## D29 coverage is not sampled on this loop.
 
 const Clock := preload("res://sim/clock.gd")
 const Command := preload("res://sim/command.gd")
@@ -43,13 +44,20 @@ var events: Array = []
 var sinks: Array = []
 var rng
 var tick: int = 0
+var root_seed: int = 1
+var map_id = null
+var arena: Dictionary = {}
 var _next_id: int = 1
 var _radii := {}
 
 
-func _init(arena: Dictionary, seed: int = 1, map_def = null, catalog = null) -> void:
-	arena_w = float(arena["w"])
-	arena_h = float(arena["h"])
+func _init(arena_size: Dictionary, seed: int = 1, map_def = null, catalog = null) -> void:
+	arena_w = float(arena_size["w"])
+	arena_h = float(arena_size["h"])
+	arena = {"w": arena_w, "h": arena_h}
+	root_seed = seed
+	if typeof(map_def) == TYPE_DICTIONARY and map_def.has("id"):
+		map_id = str(map_def["id"])
 	if catalog == null:
 		catalog = CatalogScript.new()
 	rules = catalog.rules
@@ -92,6 +100,15 @@ func spawn(vehicle: Dictionary, team: int, pos: Dictionary, heading: float) -> D
 	body["legs"] = Gait.init_gait(vehicle, body)
 	vehicles.append(body)
 	return body
+
+
+func despawn(vehicle: Dictionary) -> void:
+	var id := int(vehicle["id"])
+	var kept: Array = []
+	for other in vehicles:
+		if int(other["id"]) != id:
+			kept.append(other)
+	vehicles = kept
 
 
 func place(vehicle: Dictionary, pos: Dictionary, heading: float) -> void:
@@ -140,6 +157,65 @@ func pose(vehicle: Dictionary) -> Dictionary:
 		"turret_angles": vehicle["turret_angles"],
 		"feet": Gait.feet_pose(vehicle, vehicle["legs"]),
 	}
+
+
+func gun_angle(vehicle: Dictionary) -> float:
+	return float(vehicle["heading"]) + float(vehicle["crown_angle"])
+
+
+static func tracking_error(gun: float, from: Dictionary, to: Dictionary) -> float:
+	return absf(Angle.delta(gun, atan2(float(to["y"]) - float(from["y"]), float(to["x"]) - float(from["x"]))))
+
+
+func to_world(vehicle: Dictionary, local_pt: Dictionary) -> Dictionary:
+	return Gait.to_world(vehicle, local_pt)
+
+
+## World.hash() text: six decimals, projectile count, missile pose, wall HP.
+## Replay compares this string with itself. It is not the 1e-9 state_hash.
+func replay_hash() -> String:
+	var parts: Array = []
+	for vehicle in vehicles:
+		var nums: Array = [
+			vehicle["pos"]["x"],
+			vehicle["pos"]["y"],
+			vehicle["heading"],
+			vehicle["crown_angle"],
+		]
+		for leg in vehicle["legs"]:
+			nums.append(leg["foot"]["x"])
+			nums.append(leg["foot"]["y"])
+		for module in vehicle["def"]["modules"]:
+			var runtime: Dictionary = vehicle["modules"][str(module["id"])]
+			nums.append(runtime["armor"])
+			nums.append(runtime["structure"])
+			nums.append(runtime["stun"])
+		for mod in vehicle["mods"]:
+			nums.append(mod["left"])
+		for module in vehicle["def"]["modules"]:
+			if not module.has("weapon"):
+				continue
+			var weapon_rt: Dictionary = vehicle["weapons"][str(module["id"])]
+			nums.append(weapon_rt["pending"])
+			nums.append(weapon_rt["pending_t"])
+		nums.append(vehicle["slot"])
+		nums.append(vehicle["calm"])
+		var bits: PackedStringArray = []
+		for number in nums:
+			bits.append(_fixed(float(number), 6))
+		parts.append(",".join(bits))
+	var missile_bits: PackedStringArray = []
+	for missile in missiles:
+		missile_bits.append(",".join(PackedStringArray([
+			_fixed(float(missile["pos"]["x"]), 6),
+			_fixed(float(missile["pos"]["y"]), 6),
+			_fixed(float(missile["heading"]), 6),
+		])))
+	var wall_bits: PackedStringArray = []
+	for obstacle in terrain.obstacles:
+		if str(obstacle["def"]["kind"]) == "wall":
+			wall_bits.append(_fixed(float(obstacle["hp"]), 3))
+	return "%s#%d#%s#%s" % ["|".join(parts), projectiles.size(), ";".join(missile_bits), ",".join(wall_bits)]
 
 
 func nearest_enemy(vehicle: Dictionary):
@@ -304,3 +380,20 @@ func _mix_point(h: int, point: Dictionary) -> int:
 
 func _nano(value: float) -> int:
 	return int(round(float(value) * 1.0e9))
+
+
+static func _fixed(value: float, digits: int) -> String:
+	var negative := value < 0.0
+	var scale := 1.0
+	for _i in digits:
+		scale *= 10.0
+	var scale_i := int(round(scale))
+	var rounded := int(floor(absf(value) * scale + 0.5))
+	var whole := int(float(rounded) / float(scale_i))
+	var frac := rounded % scale_i
+	if whole == 0 and frac == 0:
+		negative = false
+	var text := str(whole) + "." + str(frac).pad_zeros(digits)
+	if negative:
+		return "-" + text
+	return text

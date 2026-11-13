@@ -1,0 +1,213 @@
+{
+  "config": {
+    "duel_keep": 900.0,
+    "duels": 6,
+    "hold_dist": 2400.0,
+    "keep_distance": 1800.0,
+    "matches": 8,
+    "orbit_radius": 420.0,
+    "push_time": 30.0,
+    "seconds": 600.0,
+    "stalemate": 30.0
+  },
+  "duels": {
+    "bulwark>bulwark": {
+      "draws": 0,
+      "losses": 0,
+      "time": 731.9,
+      "wins": 6
+    },
+    "bulwark>hawk": {
+      "draws": 0,
+      "losses": 0,
+      "time": 362.883333333333,
+      "wins": 6
+    },
+    "bulwark>swarm": {
+      "draws": 0,
+      "losses": 5,
+      "time": 917.416666666667,
+      "wins": 1
+    },
+    "hawk>bulwark": {
+      "draws": 0,
+      "losses": 6,
+      "time": 362.883333333333,
+      "wins": 0
+    },
+    "hawk>hawk": {
+      "draws": 6,
+      "losses": 0,
+      "time": 1080.0,
+      "wins": 0
+    },
+    "hawk>swarm": {
+      "draws": 0,
+      "losses": 6,
+      "time": 525.416666666667,
+      "wins": 0
+    },
+    "swarm>bulwark": {
+      "draws": 0,
+      "losses": 1,
+      "time": 912.9,
+      "wins": 5
+    },
+    "swarm>hawk": {
+      "draws": 0,
+      "losses": 0,
+      "time": 525.416666666667,
+      "wins": 6
+    },
+    "swarm>swarm": {
+      "draws": 0,
+      "losses": 0,
+      "time": 638.216666666667,
+      "wins": 6
+    }
+  },
+  "matches": [
+    {
+      "hp": [
+        0.0,
+        549.777463587189
+      ],
+      "result": {
+        "reason": "base",
+        "winner": 1
+      },
+      "seed": 1,
+      "swap": false,
+      "time": 289.03333333307
+    },
+    {
+      "hp": [
+        4486.24333333332,
+        3980.0059144009
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 0
+      },
+      "seed": 2,
+      "swap": true,
+      "time": 600.0
+    },
+    {
+      "hp": [
+        1940.01439022679,
+        0.0
+      ],
+      "result": {
+        "reason": "base",
+        "winner": 0
+      },
+      "seed": 3,
+      "swap": false,
+      "time": 537.299999999785
+    },
+    {
+      "hp": [
+        1734.16267106071,
+        704.309745851736
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 0
+      },
+      "seed": 4,
+      "swap": true,
+      "time": 600.0
+    },
+    {
+      "hp": [
+        5000.0,
+        3279.80940525541
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 0
+      },
+      "seed": 5,
+      "swap": false,
+      "time": 600.0
+    },
+    {
+      "hp": [
+        4022.42999999998,
+        4370.23308498839
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 1
+      },
+      "seed": 6,
+      "swap": true,
+      "time": 600.0
+    },
+    {
+      "hp": [
+        3185.44177300475,
+        510.304408320909
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 0
+      },
+      "seed": 7,
+      "swap": false,
+      "time": 600.0
+    },
+    {
+      "hp": [
+        3235.61333333308,
+        2614.04067162589
+      ],
+      "result": {
+        "reason": "time",
+        "winner": 0
+      },
+      "seed": 8,
+      "swap": true,
+      "time": 600.0
+    }
+  ],
+  "stats": {
+    "bulwark": {
+      "base_damage": 21106.9889431069,
+      "dealt": 111947.437290171,
+      "deaths": 8,
+      "hits": 5275,
+      "kills": 47,
+      "lifetime": 8692.86666662432,
+      "lives": 24,
+      "pens": 574,
+      "shots": 9399,
+      "taken": 71747.0578150904
+    },
+    "hawk": {
+      "base_damage": 1725.18333333329,
+      "dealt": 55688.9288717959,
+      "deaths": 92,
+      "hits": 115,
+      "kills": 19,
+      "lifetime": 7875.58333330288,
+      "lives": 103,
+      "pens": 0,
+      "shots": 184,
+      "taken": 106857.246326166
+    },
+    "swarm": {
+      "base_damage": 17650.883801312,
+      "dealt": 77619.9617155451,
+      "deaths": 12,
+      "hits": 8925,
+      "kills": 46,
+      "lifetime": 8708.86666662408,
+      "lives": 28,
+      "pens": 3602,
+      "shots": 11072,
+      "taken": 66652.0237362404
+    }
+  }
+}

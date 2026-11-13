@@ -212,6 +212,7 @@ if ($out -match 'Parse Error|ERROR:|SCRIPT ERROR') { throw "Godot 报错了:`n$o
 - [x] 定确定性基线：`SimClock.DT` + 具名种子 RNG；同种子哈希在 `tests/determinism_test.gd`（2026-11-12 实测 exit 0）
 - [x] 数据层：`Game_test@33f4be8` 的 `src/data/` 烘焙成 JSON，由 `sim/data/` 加载（2026-11-12，无头测试 1051 通过、0 失败）
 - [x] 战斗：穿深、模块状态、武器、导弹、属性修正、最小战斗驱动（2026-11-13，见第 14 节）
+- [x] 世界循环、对局、回放、AI（2026-11-13，见第 15 节）。`SimFight.step` 仍是唯一战斗步进
 - [ ] 装导出模板（等要打包时）
 - [ ] 视觉基线（玩法还没移植）
 
@@ -383,7 +384,7 @@ node tools/golden_motion.mjs --snapshot /path/to/Game_test
 21. **类型剥离导入不了带参数属性的原型文件**（2026-11-12 实测）
     - 现象：`node --experimental-strip-types` 导入 `src/sim/world.ts` 报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`，指到 `constructor(readonly arena: ...)`。
     - 根因：Node 22 的 strip-only 模式不支持 TypeScript 参数属性。`camera.ts` 同样过不了（第 11 节）。
-    - 做法：不需要整棵 `World` 时，导入没有参数属性的模块。`tools/golden_combat.mjs` 要跑 `World` 时，先把构造函数上的 `readonly` 参数改写成普通字段再导入（只改快照副本，不提交）。
+    - 做法：不需要整棵 `World` 时，导入没有参数属性的模块。`tools/golden_combat.mjs` 和 `tools/golden_world.mjs` 要跑 `World` 时，先把构造函数上的 `readonly` 参数改写成普通字段再导入（只改快照副本，不提交）。2026-11-13 实测：`match.ts` 的 `constructor(readonly world, readonly map, readonly defs)`、`nav.ts` 的 `private readonly world` / `readonly clearance`、`replay.ts` 里 `ReplayPlayer` 的 `readonly replay` 同样会被 strip-only 拒绝。黄金脚本在导入前改这三处。
 
 22. **`:=` 推不出类型时，编译直接失败**（2026-11-13 实测）
     - 现象：`var x := callable.call(...)`，或 `var flag := 未标注类型的比较 or 另一个比较`，报 `The variable type is being inferred from a Variant value`，并写着 Warning treated as error。脚本加载失败。
@@ -399,6 +400,21 @@ node tools/golden_motion.mjs --snapshot /path/to/Game_test
     - 现象：`--script` 指向的脚本不是 `SceneTree` / `MainLoop`，或者依赖脚本有解析错误时，进程停在 `do_wait`，子进程是 `xmessage`，没有退出码。空等超过数分钟。
     - 根因：第 14 条的主循环不会自己结束；这台 VM 上 Godot 还会弹出 `xmessage` 等用户点掉。
     - 做法：测试入口必须 `extends SceneTree`，并在 `_process` 里兜底 `quit(1)`。排查时先看 `app_userdata/Ironwake/logs/godot.log`，不要等那个对话框。
+
+25. **`match` 是 GDScript 关键字**（2026-11-13 实测）
+    - 现象：`var match = SimMatch.new(...)` 或单独一行 `match.step()` 报 `Expected expression to test after "match"`，脚本加载失败。
+    - 根因：`match` 是模式匹配语句，不能当变量名。文件名 `sim/match/match.gd` 和字符串 `"match"` 不受影响。
+    - 做法：对局对象用别的名字（这里是 `fixture`）。类名用 `SimMatch`。
+
+26. **`//` 是注释，不是整数除法**（2026-11-13 实测）
+    - 现象：`rounded // scale_i` 报 `Expected expression after "/" operator`。
+    - 根因：GDScript 用 `//` 开始注释。Godot 4 的 `/` 即使两边都是 int 也做浮点除法。
+    - 做法：正数用 `int(float(a) / float(b))`。余数仍用 `%`。
+
+27. **`JSON.stringify` 默认会缩短浮点**（2026-11-13 实测）
+    - 现象：回放在内存里重放一致，`JSON.stringify` 再 `parse_string` 之后第一个失步哈希在 tick 660。
+    - 根因：Godot 4 的 `JSON.stringify` 第四个参数 `full_precision` 默认是 false，写出的小数比 64 位短。
+    - 做法：回放往返用 `JSON.stringify(data, "", false, true)`。载具 id 解析回来仍是 float，放进指令表之前要 `int()`，否则对不上 int 键（第 19 条）。
 
 ## 14. 战斗（2026-11-13）
 
@@ -459,3 +475,79 @@ node tools/golden_combat.mjs --snapshot /path/to/Game_test
 - AI 只产生命令。`thinkSimple` 在导弹能发射时会把车头扭向目标；跟踪测试仍固定当成导弹未就绪。
 - 记分订阅 `sinks`，读 `hit`、`moduleState`、`vehicleDestroyed`。购买修正走 `add_purchase`，默认是空数组。换车费用仍不要读 `cost`。
 - 开火基准大约 5.4 毫秒/tick。对局层如果要无头跑很多局长，先看自动瞄准里的 `first_hit` 次数，不要先改公式。
+
+## 15. 世界、对局、回放、AI（2026-11-13）
+
+对局、回放和 AI 都调用 `SimFight.step`，没有第二套步进。顺序仍是第 14 节那一条。`SimWorld` 继续只做空步进和具名 RNG，确定性黄金哈希 `1947717684` 不变。D29 包覆不在 tick 里跑。
+
+| 文件 | 原型 |
+|---|---|
+| `sim/fight.gd` | 补上 `despawn`、`replay_hash`、`gun_angle`、`tracking_error`。`replay_hash` 对齐 `World.hash()` 的 `toFixed(6)` 字段，供回放自检 |
+| `sim/match/match.gd` | 开局名单、出生点、残骸、复活、换车配额、基地胜负和计时胜负 |
+| `sim/replay.gd`、`sim/replay_player.gd` | 记指令差量、`place`、每 60 tick 的哈希；重放走同一个 `step` |
+| `sim/ai/simple.gd` | `thinkSimple`。导弹装填完成且在 0.8 倍射程内时，车头对准目标再发射 |
+| `sim/ai/nav.gd` | 100 单位格子的 A*，墙炸开后该格可走 |
+| `sim/ai/team.gd` | `thinkTeam`。只产生 `Command` |
+
+换车和复活前走 `departure_allowed`。`quoted_fee` 固定返回 0，不读蓝图上的费用字段。`depart_gate` 默认空，此时允许出场。开局名单在构造时生成，不经过这道门；之后的 `choose` 和复活会问它。拒绝时残骸留着，选择不变。`tests/data_test.gd` 对 `sim/` 和 `game/` 的 `cost` 子串扫描没有改。
+
+黄金值：
+
+```bash
+node tools/golden_world.mjs --snapshot /path/to/Game_test
+```
+
+`tests/world_golden.json` 对比的绝对误差是 **1e-9**（文件里的数先按 1e-12 四舍五入）。锁住的是：隼绕圈 30 秒的平均距离和终态、导弹未就绪 / 就绪时的第一条指令、种子 11 的壁垒对射 180 tick、丘陵每个出生点到敌方基地的路径、默认名单在丘陵上跑 180 tick 的位置和模块。同一种子再跑一次，`state_hash()` 相同。
+
+导弹装填初值是 34 秒，30 秒绕圈里它还没就绪，所以车头仍是目标方位加 50°。这条平均距离是 `598.927694225565`，和上一节简化公式的运动黄金值差在 1e-9 内。就绪之后的指令是另一组数：`turn` 为 0，武器槽是导弹槽。
+
+无头套件 **14742** 通过、**0** 失败（2026-11-13 实测，exit 0）。上一节是 14192。编辑器冒烟 `godot --headless --editor --path . --quit` 退出码 0，日志里没有 `Parse Error`、`ERROR:`、`SCRIPT ERROR`。
+
+默认套件里有原型的对局单测、回放（含 45 秒对射和丘陵拆墙）、寻路、180 tick 黄金，以及壁垒 / 隼 / 蜂群的对战断言。6 分钟 3v3 和 8 场平衡跑局不在 `run_tests.gd` 里，避免 CI 超时。
+
+```bash
+godot --headless --path . --script res://tools/scenario.gd
+godot --headless --path . --script res://tools/balance.gd
+```
+
+`scenario.gd` 是原型「丘陵全 AI、360 秒」那条：双方推进、开火、阵亡、基地掉血，再跑一次哈希相同。`balance.gd` 对齐 `npm run balance`：8 场对称 3v3（上限 600 秒，奇数局换边）加上每对载具 6 场单挑（上限 180 秒）。报告写到 `reports/balance-report.md`。环境变量 `BAL_MATCHES`、`BAL_DUELS`、`BAL_SECONDS`、`BAL_HOLD_DIST`、`BAL_KEEP_DIST`、`BAL_ORBIT`、`BAL_STALEMATE`、`BAL_PUSH_TIME`、`BAL_DUEL_KEEP` 与原型同名。
+
+`scenario.gd` 这次实测（exit 0，两遍 360 秒）：开火 2026 次，双方离敌方基地最近 **984** 和 **348**，阵亡 7，基地有掉血，第二次 `state_hash` 相同，结果是红方因时间获胜。这只说明流程和推进成立，不是 8 场平衡口径。
+
+`balance.gd` 这次实测（8 场 + 每对 6 场单挑，报告在 `reports/balance-report.md`）：
+
+- 蓝 / 红 / 平：**6 / 2 / 0**
+- 拆基地：**25%**（2/8）
+- 平均时长：**553 s**
+- 壁垒 / 蜂群 / 隼 K/D：**5.88 / 3.83 / 0.21**
+
+同一套 8 场用原型 Node 再跑一遍：种子 1、3、4、5、6、7 的胜负、时长和基地结构与 Godot 差在 1e-9 内。种子 2 和 8 也是计时结束、胜者相同，但结束时基地结构差了几百。隼的绕圈从大约第 7500 tick 起把亚 ulp 的航向差放大了，后面的炮击不再逐发相同。8 场合计的拆基地率和平均时长两边都是 25% 和 553 秒。没有为了贴近文档里的 85% / 408 秒去改冻结数值。
+
+同一进程里的基准（2026-11-13）：
+
+- 空 `SimWorld.step`：20000 tick，**0.153 微秒/tick**
+- 丘陵 6 车只移动：4000 tick，**231 微秒/tick**（约 4321 步/秒）
+- 同一组车瞄准并开火：4000 tick，**5401 微秒/tick**（约 185 步/秒）
+- 丘陵 3v3，含寻路、`thinkTeam`、`SimFight.step`、`SimMatch.step`：热身 60 tick，再量 240 tick，**13549 微秒/tick**（约 74 步/秒）
+
+### 和原型行为的差别
+
+- 回放字符串按同一套 `toFixed` 规则自己比自己。不要求和 JS `World.hash()` 的文本逐字节相同。
+- 激光热量迟滞和队伍 AI 的路径记在载具上（`heat_hold`、`brain`），不进 `state_hash` / `replay_hash`。`place` 不清这两项，和原型 `WeakMap` 挂在同一个对象上一样。复活会 `despawn` 再 `spawn`，新车没有旧脑。
+- 购买来源修正仍在 `SimFight.step` 里单独计时。数组为空时和原型 `tickModifiers` 的结果一致。
+- 换边的长局（种子 2、8）里，隼绕圈会把小于 1e-10 的航向差慢慢放大，结束时基地结构和原型差几百。胜者和是否打满 600 秒不变。另外 6 场的基地结构差在 1e-9 内。
+- EMP、鱼雷仍只按原型里已经写了的武器数据飞和结算。
+
+### 只记录的文档矛盾
+
+本步没有改冻结数值。第 14 节的 HE 保底 0.15 和蜂群后向射界标题仍然只记录。
+
+- `docs/交接_代码改动.md` 和 `docs/数值平衡_改动记录.md` 把当前基线写成拆基地 **85%**、平均 **408 秒**（文中写的是 20 局）。在 `33f4be8` 上按默认 `npm run balance` 的设置实跑：8 局是 **25% / 553 秒**，20 局是 **40% / 502 秒**。Godot 的 8 局和原型 8 局一致。文档那一列没有被这次代码复现。数值保持冻结。
+
+### 给下一步（可玩桌面壳、占位贴图）
+
+- 表现层每帧把真实时间交给 `sim/loop.gd` 的 `advance`，回放和游玩都加 `--fixed-fps 60`。模拟只认 `SimFight.step` 和之后的 `SimMatch.step`。
+- 输入收成 `Command`。AI 已经是同一条入口。玩家载具用 `default_roster` 里 `ai: false` 的那一格，不要在 sim 里分支。
+- 画面读 `pose`、`events`、`beams`。`sinks` 留给记分。购买修正走 `add_purchase`。换车费用接 `depart_gate`，现在的报价是 0。
+- 贴图可以先按模块多边形画占位色。不要把判定改成物理服务器。
+- 完整对局大约 13.5 毫秒/tick。桌面壳先做一局，自动瞄准里的 `first_hit` 仍然是大头。
