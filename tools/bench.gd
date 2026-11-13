@@ -5,6 +5,10 @@ const CatalogScript := preload("res://sim/data/catalog.gd")
 const MotionScript := preload("res://sim/motion.gd")
 const FightScript := preload("res://sim/fight.gd")
 const Command := preload("res://sim/command.gd")
+const MatchScript := preload("res://sim/match/match.gd")
+const NavScript := preload("res://sim/ai/nav.gd")
+const Team := preload("res://sim/ai/team.gd")
+const Simple := preload("res://sim/ai/simple.gd")
 
 const WARMUP := 1000
 const TICKS := 20000
@@ -18,6 +22,7 @@ func _initialize() -> void:
 	_empty_world()
 	_motion()
 	_fight()
+	_match()
 	quit(0)
 
 
@@ -92,6 +97,37 @@ func _fight_commands(spawned: Array) -> Dictionary:
 			"secondaries": true,
 		})
 	return cmds
+
+
+func _match() -> void:
+	var cat = CatalogScript.new()
+	var hills = cat.map_def("hills")
+	var world = FightScript.new(
+		{"w": float(hills["size"]["w"]), "h": float(hills["size"]["h"])},
+		1,
+		hills,
+		cat
+	)
+	var roster := MatchScript.default_roster(0, "bulwark", cat.lineup_ids(), 3, int(cat.rules["match"]["quotaPerType"]))
+	var fixture = MatchScript.new(world, hills, cat, roster, 600.0)
+	var nav = NavScript.new(world)
+	var params := Simple.with_params()
+	for _i in 60:
+		_match_step(world, fixture, nav, params)
+	var elapsed := _time_calls(func():
+		_match_step(world, fixture, nav, params)
+	, 240)
+	_report("match_ai_hills", 240, 60, elapsed, world.tick)
+
+
+func _match_step(world, fixture, nav, params: Dictionary) -> void:
+	var cmds := {}
+	for slot in fixture.players:
+		var body = fixture.vehicle_of(slot)
+		if body != null and body["alive"]:
+			cmds[int(body["id"])] = Team.think(world, nav, body, params)
+	world.step(cmds)
+	fixture.step()
 
 
 func _commands(spawned: Array) -> Dictionary:

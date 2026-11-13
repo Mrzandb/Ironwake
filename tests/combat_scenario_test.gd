@@ -14,12 +14,11 @@ const Stats := preload("res://sim/stats/resolver.gd")
 const FightScript := preload("res://sim/fight.gd")
 
 ## Behavioral cases from the prototype combat tests.
-## Replay, match, and AI missile nose-lock stay deferred for the world step.
+## Match flow, map replay, and missile nose-lock are covered by their own suites.
 
 
 static func run(a) -> void:
 	print("RUN combat scenarios")
-	print("DEFER map replay, match flow, and AI missile launch; those need World/match/replay/AI")
 	var cat = CatalogScript.new()
 	_slots(a, cat)
 	_turrets(a, cat)
